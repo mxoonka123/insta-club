@@ -6,12 +6,16 @@ from aiogram.types import (
     ReplyKeyboardRemove,
 )
 
+from bot.config import CURATOR_USERNAME
+
 # Welcome
 BTN_JOIN = "Стать участником"
 BTN_ABOUT = "Что внутри клуба"
 BTN_TARIFFS = "Тарифы"
 BTN_REVIEWS = "Отзывы"
 BTN_CURATOR = "Связаться с куратором"
+BTN_I_PAID = "Я оплатил"
+BTN_MY_STATUS = "Статус заявки"
 
 # Main menu
 BTN_HOME = "🏠 Главная"
@@ -80,6 +84,18 @@ def welcome_keyboard() -> ReplyKeyboardMarkup:
             [KeyboardButton(text=BTN_ABOUT)],
             [KeyboardButton(text=BTN_TARIFFS), KeyboardButton(text=BTN_REVIEWS)],
             [KeyboardButton(text=BTN_CURATOR)],
+        ],
+        resize_keyboard=True,
+    )
+
+
+def pending_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=BTN_I_PAID)],
+            [KeyboardButton(text=BTN_MY_STATUS)],
+            [KeyboardButton(text=BTN_TARIFFS), KeyboardButton(text=BTN_CURATOR)],
+            [KeyboardButton(text=BTN_ABOUT)],
         ],
         resize_keyboard=True,
     )
@@ -173,8 +189,25 @@ def subscription_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="Продлить", callback_data="sub:renew")],
-            [InlineKeyboardButton(text="Изменить тариф", callback_data="sub:change")],
+            [InlineKeyboardButton(text="Тарифы", callback_data="sub:tariffs")],
             [InlineKeyboardButton(text="История платежей", callback_data="sub:history")],
+        ]
+    )
+
+
+def application_admin_keyboard(telegram_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Одобрить",
+                    callback_data=f"admin:approve:{telegram_id}",
+                ),
+                InlineKeyboardButton(
+                    text="Отклонить",
+                    callback_data=f"admin:reject:{telegram_id}",
+                ),
+            ]
         ]
     )
 
@@ -202,6 +235,21 @@ def profile_settings_keyboard(notifications_enabled: bool) -> InlineKeyboardMark
 
 
 def after_onboarding_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Я оплатил", callback_data="pay:claimed")],
+            [InlineKeyboardButton(text="Правила клуба", callback_data="profile:rules")],
+            [
+                InlineKeyboardButton(
+                    text="Написать куратору",
+                    url=f"https://t.me/{CURATOR_USERNAME}",
+                )
+            ],
+        ]
+    )
+
+
+def after_approval_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="Правила клуба", callback_data="profile:rules")],

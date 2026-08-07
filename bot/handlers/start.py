@@ -4,7 +4,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
 from bot.config import CURATOR_USERNAME, DB_PATH
-from bot.database import ensure_user, get_user, get_user_by_referral_code
+from bot.database import STATUS_PENDING, STATUS_REJECTED, ensure_user, get_user, get_user_by_referral_code
+from bot.helpers import is_active_member, status_label
 from bot.keyboards import (
     BTN_ABOUT,
     BTN_CURATOR,
@@ -13,6 +14,7 @@ from bot.keyboards import (
     BTN_REVIEWS,
     BTN_TARIFFS,
     main_menu_keyboard,
+    pending_keyboard,
     remove_keyboard,
     welcome_keyboard,
 )
@@ -30,6 +32,19 @@ def _parse_referral(command: CommandObject | None) -> int | None:
     if referrer:
         return int(referrer["telegram_id"])
     return None
+
+
+def _screen_for_user(user: dict | None) -> tuple[str, object]:
+    if is_active_member(user):
+        return texts.WELCOME + "\n\nВы в главном меню клуба.", main_menu_keyboard()
+    if user and user.get("status") == STATUS_PENDING:
+        return (
+            texts.WELCOME + f"\n\nСтатус: <b>{status_label(user)}</b>\n\n" + texts.PENDING_ACCESS,
+            pending_keyboard(),
+        )
+    if user and user.get("status") == STATUS_REJECTED:
+        return texts.REJECTED, pending_keyboard()
+    return texts.WELCOME, welcome_keyboard()
 
 
 @router.message(CommandStart())
@@ -52,12 +67,8 @@ async def cmd_start(
         message.from_user.username,
         referred_by=referred_by,
     )
-
-    if user.get("is_member"):
-        await message.answer(texts.WELCOME, reply_markup=main_menu_keyboard())
-        return
-
-    await message.answer(texts.WELCOME, reply_markup=welcome_keyboard())
+    text, keyboard = _screen_for_user(user)
+    await message.answer(text, reply_markup=keyboard)
 
 
 @router.message(F.text == BTN_HOME)
@@ -66,13 +77,8 @@ async def home(message: Message, state: FSMContext) -> None:
     if not message.from_user:
         return
     user = get_user(DB_PATH, message.from_user.id)
-    if user and user.get("is_member"):
-        await message.answer(
-            texts.WELCOME + "\n\nВы в главном меню клуба.",
-            reply_markup=main_menu_keyboard(),
-        )
-        return
-    await message.answer(texts.WELCOME, reply_markup=welcome_keyboard())
+    text, keyboard = _screen_for_user(user)
+    await message.answer(text, reply_markup=keyboard)
 
 
 @router.message(F.text == BTN_ABOUT)
@@ -93,7 +99,7 @@ async def reviews(message: Message) -> None:
 @router.message(F.text == BTN_CURATOR)
 async def curator(message: Message) -> None:
     await message.answer(
-        f"Связаться с куратором: @{CURATOR_USERNAME}\n"
+        f"Куратор клуба: @{CURATOR_USERNAME}\n"
         f"https://t.me/{CURATOR_USERNAME}"
     )
 
@@ -108,10 +114,18 @@ async def join_club(message: Message, state: FSMContext) -> None:
         message.from_user.id,
         message.from_user.username,
     )
-    if user.get("is_member"):
+    if is_active_member(user):
         await message.answer(
             "Вы уже участник клуба. Открываю главное меню.",
             reply_markup=main_menu_keyboard(),
+        )
+        return
+
+    if user.get("status") == STATUS_PENDING:
+        await message.answer(
+            f"Заявка уже создана.\nСтатус: <b>{status_label(user)}</b>\n\n"
+            + texts.AFTER_REGISTRATION,
+            reply_markup=pending_keyboard(),
         )
         return
 
@@ -130,7 +144,5 @@ async def cmd_cancel(message: Message, state: FSMContext) -> None:
     if not message.from_user:
         return
     user = get_user(DB_PATH, message.from_user.id)
-    if user and user.get("is_member"):
-        await message.answer("Отменено.", reply_markup=main_menu_keyboard())
-        return
-    await message.answer("Отменено.", reply_markup=welcome_keyboard())
+    _, keyboard = _screen_for_user(user)
+    await message.answer("Отменено.", reply_markup=keyboard)

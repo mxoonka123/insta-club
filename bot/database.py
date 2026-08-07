@@ -4,11 +4,42 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+STATUS_NEW = "new"
+STATUS_PENDING = "pending"
+STATUS_ACTIVE = "active"
+STATUS_REJECTED = "rejected"
+
 
 def get_connection(db_path: Path) -> sqlite3.Connection:
     connection = sqlite3.connect(db_path)
     connection.row_factory = sqlite3.Row
     return connection
+
+
+def _column_names(connection: sqlite3.Connection, table: str) -> set[str]:
+    rows = connection.execute(f"PRAGMA table_info({table})").fetchall()
+    return {row["name"] for row in rows}
+
+
+def _migrate(connection: sqlite3.Connection) -> None:
+    cols = _column_names(connection, "users")
+    migrations = {
+        "status": "ALTER TABLE users ADD COLUMN status TEXT NOT NULL DEFAULT 'new'",
+        "payment_claimed_at": "ALTER TABLE users ADD COLUMN payment_claimed_at TEXT",
+        "admin_note": "ALTER TABLE users ADD COLUMN admin_note TEXT",
+    }
+    for column, sql in migrations.items():
+        if column not in cols:
+            connection.execute(sql)
+
+    connection.execute(
+        """
+        UPDATE users
+        SET status = 'active'
+        WHERE is_member = 1 AND (status IS NULL OR status = '' OR status = 'new')
+        """
+    )
+    connection.commit()
 
 
 def init_db(db_path: Path) -> None:
@@ -32,6 +63,9 @@ def init_db(db_path: Path) -> None:
                 referral_code TEXT UNIQUE,
                 notifications_enabled INTEGER NOT NULL DEFAULT 1,
                 is_member INTEGER NOT NULL DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'new',
+                payment_claimed_at TEXT,
+                admin_note TEXT,
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
 
@@ -46,6 +80,7 @@ def init_db(db_path: Path) -> None:
             """
         )
         connection.commit()
+        _migrate(connection)
         _seed_demo_members(connection)
 
 
@@ -64,14 +99,14 @@ def _seed_demo_members(connection: sqlite3.Connection) -> None:
         (1007, "nikita_it", "Никита", "Нови-Сад", "IT", "https://instagram.com/nikita_it", "Партнеров"),
         (1008, "olga_food", "Ольга", "Белград", "Рестораны", "https://instagram.com/olga_food", "Развитие личного бренда"),
     ]
-    until = (datetime.utcnow() + timedelta(days=30)).strftime("%d.%m.%Y")
+    until = (datetime.utcnow() + timedelta(days=30)).strftime("%Y-%m-%d")
     for telegram_id, username, full_name, city, niche, instagram, goal in demo:
         connection.execute(
             """
             INSERT INTO users (
                 telegram_id, username, full_name, city, niche, instagram, goal,
-                tariff, tariff_until, joined_at, referral_code, is_member, intro
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'Business', ?, datetime('now'), ?, 1, ?)
+                tariff, tariff_until, joined_at, referral_code, is_member, status, intro
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'Business', ?, datetime('now'), ?, 1, 'active', ?)
             """,
             (
                 telegram_id,
@@ -137,10 +172,10 @@ def ensure_user(
 
         connection.execute(
             """
-            INSERT INTO users (telegram_id, username, referred_by, referral_code)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO users (telegram_id, username, referred_by, referral_code, status)
+            VALUES (?, ?, ?, ?, ?)
             """,
-            (telegram_id, username, referred_by, code),
+            (telegram_id, username, referred_by, code, STATUS_NEW),
         )
         connection.commit()
     return get_user(db_path, telegram_id)  # type: ignore[return-value]
@@ -156,7 +191,6 @@ def complete_onboarding(
     instagram: str,
     goal: str,
 ) -> None:
-    until = (datetime.utcnow() + timedelta(days=30)).strftime("%Y-%m-%d")
     with get_connection(db_path) as connection:
         connection.execute(
             """
@@ -167,14 +201,95 @@ def complete_onboarding(
                 instagram = ?,
                 goal = ?,
                 tariff = 'Business',
-                tariff_until = ?,
-                joined_at = datetime('now'),
-                is_member = 1
+                tariff_until = NULL,
+                joined_at = NULL,
+                is_member = 0,
+                status = ?,
+                payment_claimed_at = NULL
             WHERE telegram_id = ?
             """,
-            (full_name, city, niche, instagram, goal, until, telegram_id),
+            (full_name, city, niche, instagram, goal, STATUS_PENDING, telegram_id),
         )
         connection.commit()
+
+
+def mark_payment_claimed(db_path: Path, telegram_id: int) -> dict[str, Any] | None:
+    with get_connection(db_path) as connection:
+        connection.execute(
+            """
+            UPDATE users
+            SET payment_claimed_at = datetime('now'),
+                status = ?
+            WHERE telegram_id = ? AND status IN (?, ?)
+            """,
+            (STATUS_PENDING, telegram_id, STATUS_PENDING, STATUS_REJECTED),
+        )
+        connection.commit()
+    return get_user(db_path, telegram_id)
+
+
+def approve_member(db_path: Path, telegram_id: int, days: int = 30) -> dict[str, Any] | None:
+    until = (datetime.utcnow() + timedelta(days=days)).strftime("%Y-%m-%d")
+    with get_connection(db_path) as connection:
+        connection.execute(
+            """
+            UPDATE users
+            SET status = ?,
+                is_member = 1,
+                tariff = 'Business',
+                tariff_until = ?,
+                joined_at = COALESCE(joined_at, datetime('now'))
+            WHERE telegram_id = ?
+            """,
+            (STATUS_ACTIVE, until, telegram_id),
+        )
+        connection.execute(
+            """
+            INSERT INTO payments (telegram_id, amount, description)
+            VALUES (?, ?, ?)
+            """,
+            (telegram_id, "Business", "Подтверждение оплаты и доступ в клуб"),
+        )
+        connection.commit()
+    return get_user(db_path, telegram_id)
+
+
+def reject_member(db_path: Path, telegram_id: int, note: str | None = None) -> dict[str, Any] | None:
+    with get_connection(db_path) as connection:
+        connection.execute(
+            """
+            UPDATE users
+            SET status = ?,
+                is_member = 0,
+                admin_note = ?
+            WHERE telegram_id = ?
+            """,
+            (STATUS_REJECTED, note, telegram_id),
+        )
+        connection.commit()
+    return get_user(db_path, telegram_id)
+
+
+def renew_subscription(db_path: Path, telegram_id: int, days: int = 30) -> dict[str, Any] | None:
+    until = (datetime.utcnow() + timedelta(days=days)).strftime("%Y-%m-%d")
+    with get_connection(db_path) as connection:
+        connection.execute(
+            """
+            UPDATE users
+            SET tariff_until = ?, status = ?, is_member = 1
+            WHERE telegram_id = ?
+            """,
+            (until, STATUS_ACTIVE, telegram_id),
+        )
+        connection.execute(
+            """
+            INSERT INTO payments (telegram_id, amount, description)
+            VALUES (?, ?, ?)
+            """,
+            (telegram_id, "Business", "Продление подписки"),
+        )
+        connection.commit()
+    return get_user(db_path, telegram_id)
 
 
 def update_intro(db_path: Path, telegram_id: int, intro: str) -> None:
@@ -195,16 +310,32 @@ def set_notifications(db_path: Path, telegram_id: int, enabled: bool) -> None:
         connection.commit()
 
 
+def list_pending_applications(db_path: Path, limit: int = 20) -> list[dict[str, Any]]:
+    with get_connection(db_path) as connection:
+        rows = connection.execute(
+            """
+            SELECT * FROM users
+            WHERE status = ? AND full_name IS NOT NULL
+            ORDER BY
+                CASE WHEN payment_claimed_at IS NULL THEN 1 ELSE 0 END,
+                COALESCE(payment_claimed_at, created_at) DESC
+            LIMIT ?
+            """,
+            (STATUS_PENDING, limit),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
 def list_by_niche(db_path: Path, niche: str, limit: int = 20) -> list[dict[str, Any]]:
     with get_connection(db_path) as connection:
         rows = connection.execute(
             """
             SELECT * FROM users
-            WHERE is_member = 1 AND niche = ?
+            WHERE is_member = 1 AND status = ? AND niche = ?
             ORDER BY joined_at DESC
             LIMIT ?
             """,
-            (niche, limit),
+            (STATUS_ACTIVE, niche, limit),
         ).fetchall()
         return [dict(row) for row in rows]
 
@@ -214,11 +345,11 @@ def list_new_members(db_path: Path, limit: int = 10) -> list[dict[str, Any]]:
         rows = connection.execute(
             """
             SELECT * FROM users
-            WHERE is_member = 1
+            WHERE is_member = 1 AND status = ?
             ORDER BY joined_at DESC
             LIMIT ?
             """,
-            (limit,),
+            (STATUS_ACTIVE, limit),
         ).fetchall()
         return [dict(row) for row in rows]
 
@@ -229,13 +360,13 @@ def search_members(db_path: Path, query: str, limit: int = 15) -> list[dict[str,
         rows = connection.execute(
             """
             SELECT * FROM users
-            WHERE is_member = 1 AND (
+            WHERE is_member = 1 AND status = ? AND (
                 full_name LIKE ? OR niche LIKE ? OR city LIKE ? OR goal LIKE ? OR intro LIKE ?
             )
             ORDER BY joined_at DESC
             LIMIT ?
             """,
-            (like, like, like, like, like, limit),
+            (STATUS_ACTIVE, like, like, like, like, like, limit),
         ).fetchall()
         return [dict(row) for row in rows]
 
@@ -243,8 +374,11 @@ def search_members(db_path: Path, query: str, limit: int = 15) -> list[dict[str,
 def count_referrals(db_path: Path, telegram_id: int) -> int:
     with get_connection(db_path) as connection:
         row = connection.execute(
-            "SELECT COUNT(*) AS c FROM users WHERE referred_by = ? AND is_member = 1",
-            (telegram_id,),
+            """
+            SELECT COUNT(*) AS c FROM users
+            WHERE referred_by = ? AND is_member = 1 AND status = ?
+            """,
+            (telegram_id, STATUS_ACTIVE),
         ).fetchone()
         return int(row["c"])
 
@@ -266,24 +400,40 @@ def list_payments(db_path: Path, telegram_id: int) -> list[dict[str, Any]]:
 def admin_stats(db_path: Path) -> dict[str, Any]:
     with get_connection(db_path) as connection:
         total = connection.execute(
-            "SELECT COUNT(*) AS c FROM users WHERE is_member = 1"
+            "SELECT COUNT(*) AS c FROM users WHERE is_member = 1 AND status = ?",
+            (STATUS_ACTIVE,),
+        ).fetchone()["c"]
+        pending = connection.execute(
+            "SELECT COUNT(*) AS c FROM users WHERE status = ? AND full_name IS NOT NULL",
+            (STATUS_PENDING,),
+        ).fetchone()["c"]
+        paid_claims = connection.execute(
+            """
+            SELECT COUNT(*) AS c FROM users
+            WHERE status = ? AND payment_claimed_at IS NOT NULL
+            """,
+            (STATUS_PENDING,),
         ).fetchone()["c"]
         by_city = connection.execute(
             """
             SELECT city, COUNT(*) AS c FROM users
-            WHERE is_member = 1 AND city IS NOT NULL
+            WHERE is_member = 1 AND status = ? AND city IS NOT NULL
             GROUP BY city ORDER BY c DESC
-            """
+            """,
+            (STATUS_ACTIVE,),
         ).fetchall()
         by_niche = connection.execute(
             """
             SELECT niche, COUNT(*) AS c FROM users
-            WHERE is_member = 1 AND niche IS NOT NULL
+            WHERE is_member = 1 AND status = ? AND niche IS NOT NULL
             GROUP BY niche ORDER BY c DESC
-            """
+            """,
+            (STATUS_ACTIVE,),
         ).fetchall()
         return {
             "total": total,
+            "pending": pending,
+            "paid_claims": paid_claims,
             "by_city": [dict(row) for row in by_city],
             "by_niche": [dict(row) for row in by_niche],
         }

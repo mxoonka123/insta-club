@@ -11,6 +11,13 @@ DB_PATH = Path(os.getenv("DB_PATH", str(BASE_DIR / "profiles.db")))
 BOT_USERNAME = os.getenv("BOT_USERNAME", "").lstrip("@")
 CURATOR_USERNAME = os.getenv("CURATOR_USERNAME", "instaclub_curator").lstrip("@")
 
+BUSINESS_PRICE = os.getenv("BUSINESS_PRICE", "9 900 RSD / месяц")
+PAYMENT_DETAILS = os.getenv(
+    "PAYMENT_DETAILS",
+    "После оплаты напишите куратору и нажмите «Я оплатил» в боте.\n"
+    "Реквизиты и способ оплаты пришлёт куратор.",
+)
+
 _admin_raw = os.getenv("ADMIN_IDS", "")
 ADMIN_IDS = {
     int(item.strip())

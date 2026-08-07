@@ -3,17 +3,20 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
 from bot.config import DB_PATH
-from bot.database import complete_onboarding, ensure_user
+from bot.database import complete_onboarding, ensure_user, get_user
+from bot.helpers import application_card
 from bot.keyboards import (
     CITIES,
     GOALS,
     NICHE_TO_CATALOG,
     ONBOARDING_NICHES,
     after_onboarding_keyboard,
+    application_admin_keyboard,
     choices_keyboard,
-    main_menu_keyboard,
+    pending_keyboard,
     remove_keyboard,
 )
+from bot.notify import notify_admins
 from bot.states import Onboarding
 from bot import texts
 
@@ -153,14 +156,16 @@ async def onboarding_goal(message: Message, state: FSMContext) -> None:
     )
     await state.clear()
 
-    await message.answer(
-        "Карточка участника создана.\n\n" + texts.AFTER_REGISTRATION,
-        reply_markup=main_menu_keyboard(),
-    )
-    await message.answer(
-        "Быстрые действия:",
-        reply_markup=after_onboarding_keyboard(),
-    )
+    user = get_user(DB_PATH, message.from_user.id)
+    await message.answer(texts.AFTER_REGISTRATION, reply_markup=pending_keyboard())
+    await message.answer("Дальше:", reply_markup=after_onboarding_keyboard())
+
+    if user:
+        await notify_admins(
+            message.bot,
+            "🆕 Новая заявка в клуб\n\n" + application_card(user),
+            reply_markup=application_admin_keyboard(int(user["telegram_id"])),
+        )
 
 
 @router.message(Onboarding.goal)

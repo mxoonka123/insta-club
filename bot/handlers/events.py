@@ -27,7 +27,5 @@ async def event_details(callback: CallbackQuery) -> None:
         await callback.answer("Мероприятие не найдено", show_alert=True)
         return
     if callback.message:
-        await callback.message.answer(
-            content + "\n\nЗапись на события подключим в следующем обновлении."
-        )
+        await callback.message.answer(content)
     await callback.answer()

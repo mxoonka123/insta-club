@@ -5,6 +5,7 @@ from bot.handlers.community import router as community_router
 from bot.handlers.events import router as events_router
 from bot.handlers.knowledge import router as knowledge_router
 from bot.handlers.onboarding import router as onboarding_router
+from bot.handlers.payment import router as payment_router
 from bot.handlers.profile import router as profile_router
 from bot.handlers.referral import router as referral_router
 from bot.handlers.start import router as start_router
@@ -15,6 +16,7 @@ def get_routers() -> list[Router]:
     return [
         start_router,
         onboarding_router,
+        payment_router,
         community_router,
         knowledge_router,
         events_router,
