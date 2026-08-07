@@ -1,5 +1,6 @@
 from aiogram import F, Router
 from aiogram.filters import StateFilter
+from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from bot.config import CURATOR_USERNAME, DB_PATH
