@@ -8,8 +8,6 @@ from bot.helpers import application_card
 from bot.keyboards import (
     CITIES,
     GOALS,
-    NICHE_TO_CATALOG,
-    ONBOARDING_NICHES,
     after_onboarding_keyboard,
     application_admin_keyboard,
     choices_keyboard,
@@ -23,6 +21,11 @@ from bot import texts
 router = Router(name="onboarding")
 
 
+async def ask_niche(message: Message, state: FSMContext) -> None:
+    await state.set_state(Onboarding.niche)
+    await message.answer(texts.ASK_NICHE, reply_markup=remove_keyboard())
+
+
 @router.message(Onboarding.name, F.text, ~F.text.startswith("/"))
 async def onboarding_name(message: Message, state: FSMContext) -> None:
     name = (message.text or "").strip()
@@ -33,14 +36,14 @@ async def onboarding_name(message: Message, state: FSMContext) -> None:
     await state.update_data(full_name=name)
     await state.set_state(Onboarding.city)
     await message.answer(
-        "В каком городе вы работаете?",
+        texts.ASK_CITY,
         reply_markup=choices_keyboard(CITIES, row_width=2),
     )
 
 
 @router.message(Onboarding.name)
 async def onboarding_name_invalid(message: Message) -> None:
-    await message.answer("Нужен текстовый ответ. Как вас зовут?")
+    await message.answer("Нужен текстовый ответ. Как Вас зовут?")
 
 
 @router.message(Onboarding.city, F.text.in_(CITIES))
@@ -48,15 +51,11 @@ async def onboarding_city(message: Message, state: FSMContext) -> None:
     city = message.text or ""
     if city == "Другое":
         await state.set_state(Onboarding.city_other)
-        await message.answer("Напишите ваш город:", reply_markup=remove_keyboard())
+        await message.answer("Напишите Ваш город:", reply_markup=remove_keyboard())
         return
 
     await state.update_data(city=city)
-    await state.set_state(Onboarding.niche)
-    await message.answer(
-        "Ваша сфера?",
-        reply_markup=choices_keyboard(ONBOARDING_NICHES, row_width=2),
-    )
+    await ask_niche(message, state)
 
 
 @router.message(Onboarding.city)
@@ -74,46 +73,24 @@ async def onboarding_city_other(message: Message, state: FSMContext) -> None:
         await message.answer("Укажите город текстом.")
         return
     await state.update_data(city=city)
-    await state.set_state(Onboarding.niche)
-    await message.answer(
-        "Ваша сфера?",
-        reply_markup=choices_keyboard(ONBOARDING_NICHES, row_width=2),
-    )
+    await ask_niche(message, state)
 
 
-@router.message(Onboarding.niche, F.text.in_(ONBOARDING_NICHES))
+@router.message(Onboarding.niche, F.text, ~F.text.startswith("/"))
 async def onboarding_niche(message: Message, state: FSMContext) -> None:
-    niche = message.text or ""
-    if niche == "Другое":
-        await state.set_state(Onboarding.niche_other)
-        await message.answer("Напишите вашу сферу:", reply_markup=remove_keyboard())
+    niche = (message.text or "").strip()
+    if len(niche) < 2:
+        await message.answer("Напишите сферу Вашего бизнеса текстом.")
         return
 
-    await state.update_data(niche=NICHE_TO_CATALOG.get(niche, niche))
+    await state.update_data(niche=niche)
     await state.set_state(Onboarding.instagram)
-    await message.answer(
-        "Instagram\n\nВведите ссылку или @ник:",
-        reply_markup=remove_keyboard(),
-    )
+    await message.answer(texts.ASK_INSTAGRAM, reply_markup=remove_keyboard())
 
 
 @router.message(Onboarding.niche)
 async def onboarding_niche_invalid(message: Message) -> None:
-    await message.answer(
-        "Выберите сферу кнопкой ниже.",
-        reply_markup=choices_keyboard(ONBOARDING_NICHES, row_width=2),
-    )
-
-
-@router.message(Onboarding.niche_other, F.text, ~F.text.startswith("/"))
-async def onboarding_niche_other(message: Message, state: FSMContext) -> None:
-    niche = (message.text or "").strip()
-    if len(niche) < 2:
-        await message.answer("Укажите сферу текстом.")
-        return
-    await state.update_data(niche=niche)
-    await state.set_state(Onboarding.instagram)
-    await message.answer("Instagram\n\nВведите ссылку или @ник:")
+    await message.answer("Нужен текстовый ответ. Сфера Вашего бизнеса?")
 
 
 @router.message(Onboarding.instagram, F.text, ~F.text.startswith("/"))
@@ -126,7 +103,7 @@ async def onboarding_instagram(message: Message, state: FSMContext) -> None:
     await state.update_data(instagram=instagram)
     await state.set_state(Onboarding.goal)
     await message.answer(
-        "Что хотите получить?",
+        texts.ASK_GOAL,
         reply_markup=choices_keyboard(GOALS, row_width=1),
     )
 
@@ -171,6 +148,6 @@ async def onboarding_goal(message: Message, state: FSMContext) -> None:
 @router.message(Onboarding.goal)
 async def onboarding_goal_invalid(message: Message) -> None:
     await message.answer(
-        "Выберите цель кнопкой ниже.",
+        "Выберите вариант кнопкой ниже.",
         reply_markup=choices_keyboard(GOALS, row_width=1),
     )

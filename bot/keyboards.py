@@ -12,7 +12,7 @@ from bot.config import CURATOR_USERNAME
 BTN_JOIN = "Стать участником"
 BTN_ABOUT = "Что внутри клуба"
 BTN_TARIFFS = "Тарифы"
-BTN_REVIEWS = "Отзывы"
+BTN_PARTNERS = "Партнёры"
 BTN_CURATOR = "Связаться с куратором"
 BTN_I_PAID = "Я оплатил"
 BTN_MY_STATUS = "Статус заявки"
@@ -35,14 +35,6 @@ BTN_SEARCH_NICHES = "Поиск по нишам"
 BTN_BACK_MENU = "← В меню"
 
 CITIES = ["Белград", "Нови-Сад", "Ниш", "Другое"]
-ONBOARDING_NICHES = [
-    "Красота",
-    "Недвижимость",
-    "Туризм",
-    "Маркетинг",
-    "Образование",
-    "Другое",
-]
 GOALS = [
     "Новые знакомства",
     "Партнеров",
@@ -62,15 +54,18 @@ CATALOG_NICHES = [
     "Другое",
 ]
 
-# Map onboarding niche labels to catalog niches where possible
-NICHE_TO_CATALOG = {
-    "Красота": "Салоны красоты",
-    "Недвижимость": "Риелторы",
-    "Туризм": "Другое",
-    "Маркетинг": "Маркетологи",
-    "Образование": "Другое",
-    "Другое": "Другое",
-}
+
+def partners_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Mishin Club",
+                    url="https://t.me/mishin_club_bot",
+                )
+            ]
+        ]
+    )
 
 
 def remove_keyboard() -> ReplyKeyboardRemove:
@@ -82,7 +77,7 @@ def welcome_keyboard() -> ReplyKeyboardMarkup:
         keyboard=[
             [KeyboardButton(text=BTN_JOIN)],
             [KeyboardButton(text=BTN_ABOUT)],
-            [KeyboardButton(text=BTN_TARIFFS), KeyboardButton(text=BTN_REVIEWS)],
+            [KeyboardButton(text=BTN_TARIFFS), KeyboardButton(text=BTN_PARTNERS)],
             [KeyboardButton(text=BTN_CURATOR)],
         ],
         resize_keyboard=True,

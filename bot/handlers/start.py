@@ -11,9 +11,10 @@ from bot.keyboards import (
     BTN_CURATOR,
     BTN_HOME,
     BTN_JOIN,
-    BTN_REVIEWS,
+    BTN_PARTNERS,
     BTN_TARIFFS,
     main_menu_keyboard,
+    partners_keyboard,
     pending_keyboard,
     remove_keyboard,
     welcome_keyboard,
@@ -91,9 +92,9 @@ async def tariffs(message: Message) -> None:
     await message.answer(texts.TARIFFS)
 
 
-@router.message(F.text == BTN_REVIEWS)
-async def reviews(message: Message) -> None:
-    await message.answer(texts.REVIEWS)
+@router.message(F.text == BTN_PARTNERS)
+async def partners(message: Message) -> None:
+    await message.answer(texts.PARTNERS, reply_markup=partners_keyboard())
 
 
 @router.message(F.text == BTN_CURATOR)
