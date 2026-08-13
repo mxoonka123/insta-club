@@ -14,6 +14,7 @@ from bot.handlers.subscription import router as subscription_router
 
 def get_routers() -> list[Router]:
     return [
+        admin_router,
         start_router,
         onboarding_router,
         payment_router,
@@ -23,5 +24,4 @@ def get_routers() -> list[Router]:
         subscription_router,
         referral_router,
         profile_router,
-        admin_router,
     ]

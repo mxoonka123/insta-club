@@ -288,24 +288,48 @@ def revoke_member(db_path: Path, telegram_id: int, note: str | None = None) -> d
 
 
 def find_members(db_path: Path, query: str, limit: int = 15) -> list[dict[str, Any]]:
-    like = f"%{query.strip()}%"
+    raw = (query or "").strip().lstrip("@")
+    digits = "".join(ch for ch in raw if ch.isdigit())
+    found: list[dict[str, Any]] = []
+    seen: set[int] = set()
+
     with get_connection(db_path) as connection:
-        if query.strip().isdigit():
-            rows = connection.execute(
-                "SELECT * FROM users WHERE telegram_id = ?",
-                (int(query.strip()),),
-            ).fetchall()
-        else:
+        if digits:
             rows = connection.execute(
                 """
                 SELECT * FROM users
-                WHERE full_name LIKE ? OR username LIKE ? OR niche LIKE ? OR city LIKE ?
+                WHERE telegram_id = ? OR CAST(telegram_id AS TEXT) = ?
+                """,
+                (int(digits), digits),
+            ).fetchall()
+            for row in rows:
+                item = dict(row)
+                seen.add(int(item["telegram_id"]))
+                found.append(item)
+
+        if raw:
+            like = f"%{raw}%"
+            rows = connection.execute(
+                """
+                SELECT * FROM users
+                WHERE CAST(telegram_id AS TEXT) LIKE ?
+                   OR IFNULL(full_name, '') LIKE ?
+                   OR IFNULL(username, '') LIKE ?
+                   OR IFNULL(niche, '') LIKE ?
+                   OR IFNULL(city, '') LIKE ?
                 ORDER BY is_member DESC, joined_at DESC
                 LIMIT ?
                 """,
-                (like, like, like, like, limit),
+                (f"%{digits or raw}%", like, like, like, like, limit),
             ).fetchall()
-        return [dict(row) for row in rows]
+            for row in rows:
+                item = dict(row)
+                telegram_id = int(item["telegram_id"])
+                if telegram_id not in seen:
+                    seen.add(telegram_id)
+                    found.append(item)
+
+    return found[:limit]
 
 
 def renew_subscription(db_path: Path, telegram_id: int, days: int = 30) -> dict[str, Any] | None:

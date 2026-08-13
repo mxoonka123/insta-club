@@ -23,7 +23,7 @@ from bot import texts
 router = Router(name="onboarding")
 
 
-@router.message(Onboarding.name, F.text)
+@router.message(Onboarding.name, F.text, ~F.text.startswith("/"))
 async def onboarding_name(message: Message, state: FSMContext) -> None:
     name = (message.text or "").strip()
     if len(name) < 2:
@@ -67,7 +67,7 @@ async def onboarding_city_invalid(message: Message) -> None:
     )
 
 
-@router.message(Onboarding.city_other, F.text)
+@router.message(Onboarding.city_other, F.text, ~F.text.startswith("/"))
 async def onboarding_city_other(message: Message, state: FSMContext) -> None:
     city = (message.text or "").strip()
     if len(city) < 2:
@@ -105,7 +105,7 @@ async def onboarding_niche_invalid(message: Message) -> None:
     )
 
 
-@router.message(Onboarding.niche_other, F.text)
+@router.message(Onboarding.niche_other, F.text, ~F.text.startswith("/"))
 async def onboarding_niche_other(message: Message, state: FSMContext) -> None:
     niche = (message.text or "").strip()
     if len(niche) < 2:
@@ -116,7 +116,7 @@ async def onboarding_niche_other(message: Message, state: FSMContext) -> None:
     await message.answer("Instagram\n\nВведите ссылку или @ник:")
 
 
-@router.message(Onboarding.instagram, F.text)
+@router.message(Onboarding.instagram, F.text, ~F.text.startswith("/"))
 async def onboarding_instagram(message: Message, state: FSMContext) -> None:
     instagram = (message.text or "").strip()
     if len(instagram) < 2:

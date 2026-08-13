@@ -72,7 +72,7 @@ async def introduce_start(message: Message, state: FSMContext) -> None:
     )
 
 
-@router.message(Introduce.text, F.text)
+@router.message(Introduce.text, F.text, ~F.text.startswith("/"))
 async def introduce_save(message: Message, state: FSMContext) -> None:
     if not message.from_user:
         return
@@ -105,7 +105,7 @@ async def find_partners_start(message: Message, state: FSMContext) -> None:
     )
 
 
-@router.message(SearchPartners.query, F.text)
+@router.message(SearchPartners.query, F.text, ~F.text.startswith("/"))
 async def find_partners_search(message: Message, state: FSMContext) -> None:
     query = (message.text or "").strip()
     await state.clear()

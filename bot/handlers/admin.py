@@ -1,5 +1,5 @@
 from aiogram import F, Router
-from aiogram.filters import Command
+from aiogram.filters import Command, CommandObject
 from aiogram.types import CallbackQuery, Message
 
 from bot.config import ADMIN_IDS, DB_PATH
@@ -28,6 +28,23 @@ router = Router(name="admin")
 
 def _is_admin(user_id: int | None) -> bool:
     return bool(user_id and user_id in ADMIN_IDS)
+
+
+def _command_args(message: Message, command: CommandObject | None = None) -> str:
+    if command and command.args:
+        return command.args.strip()
+    parts = (message.text or "").split(maxsplit=1)
+    if len(parts) == 2:
+        return parts[1].strip()
+    return ""
+
+
+def _extract_id(message: Message, command: CommandObject | None = None) -> int | None:
+    raw = _command_args(message, command)
+    digits = "".join(ch for ch in raw if ch.isdigit())
+    if digits:
+        return int(digits)
+    return None
 
 
 @router.message(Command("admin"))
@@ -84,70 +101,70 @@ async def applications_list(message: Message) -> None:
 
 
 @router.message(Command("approve"))
-async def approve_command(message: Message) -> None:
+async def approve_command(message: Message, command: CommandObject) -> None:
     if not _is_admin(message.from_user.id if message.from_user else None):
         return
-    parts = (message.text or "").split()
-    if len(parts) < 2 or not parts[1].isdigit():
+    user_id = _extract_id(message, command)
+    if not user_id:
         await message.answer("Формат: /approve 123456789")
         return
-    await _approve(message, int(parts[1]))
+    await _approve(message, user_id)
 
 
 @router.message(Command("reject"))
-async def reject_command(message: Message) -> None:
+async def reject_command(message: Message, command: CommandObject) -> None:
     if not _is_admin(message.from_user.id if message.from_user else None):
         return
-    parts = (message.text or "").split()
-    if len(parts) < 2 or not parts[1].isdigit():
+    user_id = _extract_id(message, command)
+    if not user_id:
         await message.answer("Формат: /reject 123456789")
         return
-    await _reject(message, int(parts[1]))
+    await _reject(message, user_id)
 
 
 @router.message(Command("find"))
-async def find_command(message: Message) -> None:
+async def find_command(message: Message, command: CommandObject) -> None:
     if not _is_admin(message.from_user.id if message.from_user else None):
         return
-    parts = (message.text or "").split(maxsplit=1)
-    if len(parts) < 2 or not parts[1].strip():
-        await message.answer("Формат: /find Мария  или  /find 123456789")
+    query = _command_args(message, command)
+    if not query:
+        await message.answer("Формат: /find Мария  или  /find 318427459")
         return
 
-    members = find_members(DB_PATH, parts[1])
+    members = find_members(DB_PATH, query)
     if not members:
-        await message.answer("Никого не нашли.")
+        await message.answer(
+            "Никого не нашли. Проверьте ID или имя.\n"
+            "Пример: /find Людмила"
+        )
         return
 
     await message.answer(f"Найдено: {len(members)}")
     for member in members:
-        markup = None
-        if member.get("is_member"):
-            markup = member_admin_keyboard(int(member["telegram_id"]))
+        markup = member_admin_keyboard(int(member["telegram_id"]))
         await message.answer(application_card(member), reply_markup=markup)
 
 
 @router.message(Command("kick"))
-async def kick_command(message: Message) -> None:
+async def kick_command(message: Message, command: CommandObject) -> None:
     if not _is_admin(message.from_user.id if message.from_user else None):
         return
-    parts = (message.text or "").split()
-    if len(parts) < 2 or not parts[1].isdigit():
-        await message.answer("Формат: /kick 123456789")
+    user_id = _extract_id(message, command)
+    if not user_id:
+        await message.answer("Формат: /kick 318427459")
         return
-    await _kick(message, int(parts[1]))
+    await _kick(message, user_id)
 
 
 @router.message(Command("renew"))
-async def renew_command(message: Message) -> None:
+async def renew_command(message: Message, command: CommandObject) -> None:
     if not _is_admin(message.from_user.id if message.from_user else None):
         return
-    parts = (message.text or "").split()
-    if len(parts) < 2 or not parts[1].isdigit():
+    user_id = _extract_id(message, command)
+    if not user_id:
         await message.answer("Формат: /renew 123456789")
         return
 
-    user_id = int(parts[1])
     user = renew_subscription(DB_PATH, user_id)
     if not user:
         await message.answer("Пользователь не найден.")
