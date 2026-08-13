@@ -20,7 +20,7 @@ from bot.keyboards import (
     application_admin_keyboard,
     main_menu_keyboard,
     member_admin_keyboard,
-    pending_keyboard,
+    welcome_keyboard,
 )
 from bot import texts
 
@@ -293,7 +293,11 @@ async def _reject(message: Message, user_id: int, edit: bool = False) -> None:
         await message.answer(text)
 
     try:
-        await message.bot.send_message(user_id, texts.REJECTED)
+        await message.bot.send_message(
+            user_id,
+            texts.REJECTED,
+            reply_markup=welcome_keyboard(),
+        )
     except Exception:
         pass
 
@@ -318,7 +322,7 @@ async def _kick(message: Message, user_id: int, edit: bool = False) -> None:
         await message.bot.send_message(
             user_id,
             texts.KICKED,
-            reply_markup=pending_keyboard(),
+            reply_markup=welcome_keyboard(),
         )
     except Exception:
         await message.answer("Доступ закрыт, но сообщение пользователю не отправилось.")

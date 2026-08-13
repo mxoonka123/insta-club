@@ -100,7 +100,7 @@ async def require_member(message: Message) -> dict | None:
         return None
 
     if user and user.get("status") == STATUS_REJECTED:
-        await message.answer(texts.REJECTED, reply_markup=pending_keyboard())
+        await message.answer(texts.REJECTED, reply_markup=welcome_keyboard())
         return None
 
     await message.answer(

@@ -44,7 +44,7 @@ def _screen_for_user(user: dict | None) -> tuple[str, object]:
             pending_keyboard(),
         )
     if user and user.get("status") == STATUS_REJECTED:
-        return texts.REJECTED, pending_keyboard()
+        return texts.REJECTED, welcome_keyboard()
     return texts.WELCOME, welcome_keyboard()
 
 
