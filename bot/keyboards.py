@@ -212,6 +212,19 @@ def application_admin_keyboard(telegram_id: int) -> InlineKeyboardMarkup:
     )
 
 
+def member_admin_keyboard(telegram_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Закрыть доступ",
+                    callback_data=f"admin:kick:{telegram_id}",
+                )
+            ]
+        ]
+    )
+
+
 def member_card_keyboard(instagram: str | None, username: str | None) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
     if instagram:

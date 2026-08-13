@@ -270,6 +270,44 @@ def reject_member(db_path: Path, telegram_id: int, note: str | None = None) -> d
     return get_user(db_path, telegram_id)
 
 
+def revoke_member(db_path: Path, telegram_id: int, note: str | None = None) -> dict[str, Any] | None:
+    with get_connection(db_path) as connection:
+        connection.execute(
+            """
+            UPDATE users
+            SET status = ?,
+                is_member = 0,
+                tariff_until = NULL,
+                admin_note = ?
+            WHERE telegram_id = ?
+            """,
+            (STATUS_REJECTED, note or "Доступ закрыт администратором", telegram_id),
+        )
+        connection.commit()
+    return get_user(db_path, telegram_id)
+
+
+def find_members(db_path: Path, query: str, limit: int = 15) -> list[dict[str, Any]]:
+    like = f"%{query.strip()}%"
+    with get_connection(db_path) as connection:
+        if query.strip().isdigit():
+            rows = connection.execute(
+                "SELECT * FROM users WHERE telegram_id = ?",
+                (int(query.strip()),),
+            ).fetchall()
+        else:
+            rows = connection.execute(
+                """
+                SELECT * FROM users
+                WHERE full_name LIKE ? OR username LIKE ? OR niche LIKE ? OR city LIKE ?
+                ORDER BY is_member DESC, joined_at DESC
+                LIMIT ?
+                """,
+                (like, like, like, like, limit),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+
 def renew_subscription(db_path: Path, telegram_id: int, days: int = 30) -> dict[str, Any] | None:
     until = (datetime.utcnow() + timedelta(days=days)).strftime("%Y-%m-%d")
     with get_connection(db_path) as connection:

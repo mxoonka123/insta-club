@@ -6,13 +6,21 @@ from bot.config import ADMIN_IDS, DB_PATH
 from bot.database import (
     admin_stats,
     approve_member,
+    find_members,
     get_user,
     list_pending_applications,
     reject_member,
     renew_subscription,
+    revoke_member,
 )
 from bot.helpers import application_card
-from bot.keyboards import application_admin_keyboard, after_approval_keyboard, main_menu_keyboard
+from bot.keyboards import (
+    after_approval_keyboard,
+    application_admin_keyboard,
+    main_menu_keyboard,
+    member_admin_keyboard,
+    pending_keyboard,
+)
 from bot import texts
 
 router = Router(name="admin")
@@ -37,8 +45,10 @@ async def admin_panel(message: Message) -> None:
         "",
         "Команды:",
         "/applications — список заявок",
+        "/find имя — найти участника",
         "/approve ID — одобрить",
-        "/reject ID — отклонить",
+        "/reject ID — отклонить заявку",
+        "/kick ID — закрыть доступ",
         "/renew ID — продлить на 30 дней",
         "",
         "<b>По городам</b>",
@@ -95,6 +105,39 @@ async def reject_command(message: Message) -> None:
     await _reject(message, int(parts[1]))
 
 
+@router.message(Command("find"))
+async def find_command(message: Message) -> None:
+    if not _is_admin(message.from_user.id if message.from_user else None):
+        return
+    parts = (message.text or "").split(maxsplit=1)
+    if len(parts) < 2 or not parts[1].strip():
+        await message.answer("Формат: /find Мария  или  /find 123456789")
+        return
+
+    members = find_members(DB_PATH, parts[1])
+    if not members:
+        await message.answer("Никого не нашли.")
+        return
+
+    await message.answer(f"Найдено: {len(members)}")
+    for member in members:
+        markup = None
+        if member.get("is_member"):
+            markup = member_admin_keyboard(int(member["telegram_id"]))
+        await message.answer(application_card(member), reply_markup=markup)
+
+
+@router.message(Command("kick"))
+async def kick_command(message: Message) -> None:
+    if not _is_admin(message.from_user.id if message.from_user else None):
+        return
+    parts = (message.text or "").split()
+    if len(parts) < 2 or not parts[1].isdigit():
+        await message.answer("Формат: /kick 123456789")
+        return
+    await _kick(message, int(parts[1]))
+
+
 @router.message(Command("renew"))
 async def renew_command(message: Message) -> None:
     if not _is_admin(message.from_user.id if message.from_user else None):
@@ -141,6 +184,17 @@ async def reject_callback(callback: CallbackQuery) -> None:
     await callback.answer("Отклонено")
     if callback.message:
         await _reject(callback.message, user_id, edit=True)
+
+
+@router.callback_query(F.data.startswith("admin:kick:"))
+async def kick_callback(callback: CallbackQuery) -> None:
+    if not _is_admin(callback.from_user.id if callback.from_user else None):
+        await callback.answer("Нет доступа", show_alert=True)
+        return
+    user_id = int((callback.data or "").split(":")[-1])
+    await callback.answer("Доступ закрыт")
+    if callback.message:
+        await _kick(callback.message, user_id, edit=True)
 
 
 async def _approve(message: Message, user_id: int, edit: bool = False) -> None:
@@ -194,3 +248,29 @@ async def _reject(message: Message, user_id: int, edit: bool = False) -> None:
         await message.bot.send_message(user_id, texts.REJECTED)
     except Exception:
         pass
+
+
+async def _kick(message: Message, user_id: int, edit: bool = False) -> None:
+    before = get_user(DB_PATH, user_id)
+    if not before:
+        await message.answer("Пользователь не найден.")
+        return
+
+    user = revoke_member(DB_PATH, user_id)
+    text = f"🚫 Доступ закрыт\n\n{application_card(user or before)}"
+    if edit:
+        try:
+            await message.edit_text(text)
+        except Exception:
+            await message.answer(text)
+    else:
+        await message.answer(text)
+
+    try:
+        await message.bot.send_message(
+            user_id,
+            texts.KICKED,
+            reply_markup=pending_keyboard(),
+        )
+    except Exception:
+        await message.answer("Доступ закрыт, но сообщение пользователю не отправилось.")
