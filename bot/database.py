@@ -1,3 +1,4 @@
+import os
 import secrets
 import sqlite3
 from datetime import datetime, timedelta
@@ -81,7 +82,8 @@ def init_db(db_path: Path) -> None:
         )
         connection.commit()
         _migrate(connection)
-        _seed_demo_members(connection)
+        if os.getenv("SEED_DEMO", "").strip() in {"1", "true", "yes"}:
+            _seed_demo_members(connection)
 
 
 def _seed_demo_members(connection: sqlite3.Connection) -> None:
@@ -496,6 +498,28 @@ def admin_stats(db_path: Path) -> dict[str, Any]:
             "total": total,
             "pending": pending,
             "paid_claims": paid_claims,
+            "all_records": connection.execute(
+                "SELECT COUNT(*) AS c FROM users"
+            ).fetchone()["c"],
             "by_city": [dict(row) for row in by_city],
             "by_niche": [dict(row) for row in by_niche],
         }
+
+
+def list_all_users(db_path: Path, limit: int = 30) -> list[dict[str, Any]]:
+    with get_connection(db_path) as connection:
+        rows = connection.execute(
+            """
+            SELECT * FROM users
+            ORDER BY
+                CASE status
+                    WHEN 'active' THEN 0
+                    WHEN 'pending' THEN 1
+                    ELSE 2
+                END,
+                COALESCE(joined_at, created_at) DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+        return [dict(row) for row in rows]

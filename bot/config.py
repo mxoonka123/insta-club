@@ -6,10 +6,23 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
+
+def _resolve_db_path() -> Path:
+    env_path = os.getenv("DB_PATH", "").strip()
+    if env_path:
+        return Path(env_path)
+
+    data_dir = Path("/data")
+    if data_dir.is_dir() and os.access(data_dir, os.W_OK):
+        return data_dir / "profiles.db"
+    return BASE_DIR / "profiles.db"
+
+
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
-DB_PATH = Path(os.getenv("DB_PATH", str(BASE_DIR / "profiles.db")))
+DB_PATH = _resolve_db_path()
 BOT_USERNAME = os.getenv("BOT_USERNAME", "").lstrip("@")
 CURATOR_USERNAME = os.getenv("CURATOR_USERNAME", "instaclub_curator").lstrip("@")
+SEED_DEMO = os.getenv("SEED_DEMO", "").strip() in {"1", "true", "yes"}
 
 BUSINESS_PRICE = os.getenv("BUSINESS_PRICE", "9 900 RSD / месяц")
 PAYMENT_DETAILS = os.getenv(

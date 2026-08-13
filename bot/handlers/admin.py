@@ -8,6 +8,7 @@ from bot.database import (
     approve_member,
     find_members,
     get_user,
+    list_all_users,
     list_pending_applications,
     reject_member,
     renew_subscription,
@@ -57,10 +58,13 @@ async def admin_panel(message: Message) -> None:
     lines = [
         "<b>Админ-панель INSTA CLUB</b>",
         f"Активных участников: {stats['total']}",
+        f"Всего записей в базе: {stats['all_records']}",
         f"Заявок на проверке: {stats['pending']}",
         f"Из них отметили оплату: {stats['paid_claims']}",
+        f"База: <code>{DB_PATH}</code>",
         "",
         "Команды:",
+        "/members — все участники",
         "/applications — список заявок",
         "/find имя — найти участника",
         "/approve ID — одобрить",
@@ -79,6 +83,29 @@ async def admin_panel(message: Message) -> None:
         lines.append(f"• {row['niche']}: {row['c']}")
 
     await message.answer("\n".join(lines))
+
+
+@router.message(Command("members"))
+async def members_list(message: Message) -> None:
+    if not _is_admin(message.from_user.id if message.from_user else None):
+        await message.answer("Команда доступна только администраторам.")
+        return
+
+    members = list_all_users(DB_PATH)
+    if not members:
+        await message.answer(
+            "В базе никого нет. После редеплоя данные могли сброситься.\n"
+            "На Railway нужен Volume с путём /data и переменная "
+            "DB_PATH=/data/profiles.db"
+        )
+        return
+
+    await message.answer(f"Участников в базе: {len(members)}")
+    for member in members:
+        await message.answer(
+            application_card(member),
+            reply_markup=member_admin_keyboard(int(member["telegram_id"])),
+        )
 
 
 @router.message(Command("applications"))
@@ -133,9 +160,13 @@ async def find_command(message: Message, command: CommandObject) -> None:
 
     members = find_members(DB_PATH, query)
     if not members:
+        stats = admin_stats(DB_PATH)
         await message.answer(
-            "Никого не нашли. Проверьте ID или имя.\n"
-            "Пример: /find Людмила"
+            "Этого человека сейчас нет в базе.\n\n"
+            f"Всего записей: {stats['all_records']}\n"
+            "После редеплоя SQLite могла обнулиться — тогда доступ у Людмилы "
+            "уже закрыт сам.\n\n"
+            "Посмотрите, кто есть: /members"
         )
         return
 
