@@ -11,7 +11,6 @@ import bot.config as config
 from bot.config import BOT_TOKEN, DB_PATH, db_is_persistent, is_railway, volume_mount_path
 from bot.database import init_db
 from bot.handlers import get_routers
-from bot.notices import send_launch_notices
 from bot.notify import notify_admins
 from bot.reminders import reminder_loop
 
@@ -60,8 +59,6 @@ async def main() -> None:
 
     if not persistent:
         await notify_admins(bot, EPHEMERAL_DB_WARNING)
-
-    await send_launch_notices(bot)
 
     dp = Dispatcher(storage=MemoryStorage())
     for router in get_routers():

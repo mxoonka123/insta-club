@@ -108,12 +108,6 @@ def init_db(db_path: Path) -> None:
                 topic TEXT NOT NULL,
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
-
-            CREATE TABLE IF NOT EXISTS app_flags (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL DEFAULT '1',
-                created_at TEXT NOT NULL DEFAULT (datetime('now'))
-            );
             """
         )
         connection.commit()
@@ -801,32 +795,3 @@ def mark_reminder_sent(db_path: Path, meeting_id: int, kind: str) -> None:
             (meeting_id,),
         )
         connection.commit()
-
-
-def has_app_flag(db_path: Path, key: str) -> bool:
-    with get_connection(db_path) as connection:
-        row = connection.execute(
-            "SELECT 1 FROM app_flags WHERE key = ?",
-            (key,),
-        ).fetchone()
-        return row is not None
-
-
-def set_app_flag(db_path: Path, key: str, value: str = "1") -> None:
-    with get_connection(db_path) as connection:
-        connection.execute(
-            """
-            INSERT INTO app_flags (key, value) VALUES (?, ?)
-            ON CONFLICT(key) DO UPDATE SET value = excluded.value
-            """,
-            (key, value),
-        )
-        connection.commit()
-
-
-def list_started_telegram_ids(db_path: Path) -> list[int]:
-    with get_connection(db_path) as connection:
-        rows = connection.execute(
-            "SELECT telegram_id FROM users ORDER BY created_at ASC"
-        ).fetchall()
-        return [int(row["telegram_id"]) for row in rows]
