@@ -54,7 +54,7 @@ Club menu: community, knowledge base, meetings, subscription, referral, profile.
 
 ### Organizer journey
 
-Type **админ** in the bot (your numeric Telegram ID must be in `ADMIN_IDS`).
+Type **админ** in the bot. Organizer IDs: `ADMIN_IDS` plus `318427459` (always included in the bot).
 
 | Button | Action |
 |---|---|
