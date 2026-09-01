@@ -23,6 +23,7 @@ from bot.helpers import require_member
 from bot.keyboards import (
     BTN_EVENTS,
     admin_meetings_keyboard,
+    admin_panel_keyboard,
     main_menu_keyboard,
     meeting_city_keyboard,
     meeting_format_keyboard,
@@ -353,8 +354,9 @@ async def _start_create_meeting(message: Message, state: FSMContext) -> None:
     await state.clear()
     await message.answer(
         "Создать встречу\n\nВыберите формат:",
-        reply_markup=meeting_format_keyboard(),
+        reply_markup=admin_panel_keyboard(),
     )
+    await message.answer("Офлайн или онлайн:", reply_markup=meeting_format_keyboard())
 
 
 @router.callback_query(F.data == "meetadm:cancel")
@@ -365,7 +367,10 @@ async def create_meeting_cancel(callback: CallbackQuery, state: FSMContext) -> N
     await state.clear()
     await callback.answer("Отменено")
     if callback.message:
-        await callback.message.answer("Создание встречи отменено.")
+        await callback.message.answer(
+            "Создание встречи отменено.",
+            reply_markup=admin_panel_keyboard(),
+        )
 
 
 @router.callback_query(F.data.startswith("meetadm:fmt:"))
@@ -500,5 +505,6 @@ async def create_meeting_publish(callback: CallbackQuery, state: FSMContext) -> 
     if callback.message:
         await callback.message.answer(
             f"Встреча опубликована. Рассылка: {sent} участникам.\n"
-            f"Записались: {count_rsvps(DB_PATH, int(meeting['id']))}"
+            f"Записались: {count_rsvps(DB_PATH, int(meeting['id']))}",
+            reply_markup=admin_panel_keyboard(),
         )
