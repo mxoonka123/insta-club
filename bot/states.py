@@ -29,3 +29,7 @@ class CreateMeeting(StatesGroup):
     topic = State()
     seats = State()
     confirm = State()
+
+
+class AdminFind(StatesGroup):
+    query = State()

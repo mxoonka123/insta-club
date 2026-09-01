@@ -30,6 +30,14 @@ def is_active_member(user: dict | None) -> bool:
     return bool(user and user.get("is_member") and user.get("status") == STATUS_ACTIVE)
 
 
+def home_keyboard_for(user: dict | None):
+    if is_active_member(user):
+        return main_menu_keyboard()
+    if user and user.get("status") == STATUS_PENDING:
+        return pending_keyboard()
+    return welcome_keyboard()
+
+
 def status_label(user: dict) -> str:
     status = user.get("status")
     if status == STATUS_ACTIVE:

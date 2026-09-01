@@ -26,7 +26,12 @@ MONTHS = [
 
 def parse_local_datetime(date_text: str, time_text: str) -> datetime | None:
     try:
-        day, month, year = [int(part) for part in date_text.replace("/", ".").split(".")]
+        parts = date_text.replace("/", ".").split(".")
+        if len(parts) != 3 or len(parts[2]) != 4:
+            return None
+        day, month, year = [int(part) for part in parts]
+        if year < 2020:
+            return None
         hour, minute = [int(part) for part in time_text.replace(".", ":").split(":")]
         local = datetime(year, month, day, hour, minute, tzinfo=BELGRADE)
         return local.astimezone(timezone.utc).replace(tzinfo=None)
@@ -42,6 +47,19 @@ def format_when(starts_at: str) -> str:
     utc = parse_stored(starts_at).replace(tzinfo=timezone.utc)
     local = utc.astimezone(BELGRADE)
     return f"{local.day} {MONTHS[local.month - 1]}, {local.strftime('%H:%M')}"
+
+
+def format_when_safe(starts_at: str) -> str:
+    try:
+        return format_when(starts_at)
+    except (ValueError, TypeError):
+        return starts_at or "—"
+
+
+def meeting_is_upcoming(meeting: dict) -> bool:
+    now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
+    starts = str(meeting.get("starts_at") or "")[:19]
+    return starts >= now
 
 
 def format_place(meeting: dict) -> str:
@@ -73,8 +91,22 @@ def format_meeting(meeting: dict, db_path) -> str:
 def format_archive_item(meeting: dict, db_path) -> str:
     taken = count_rsvps(db_path, int(meeting["id"]))
     return (
-        f"{format_when(meeting['starts_at'])} · {format_place(meeting)}\n"
+        f"{format_when_safe(meeting['starts_at'])} · {format_place(meeting)}\n"
         f"{meeting.get('topic')} · было {taken} уч."
+    )
+
+
+def format_admin_meeting_line(meeting: dict, db_path) -> str:
+    taken = count_rsvps(db_path, int(meeting["id"]))
+    seats = meeting.get("seats")
+    seats_txt = str(taken) if seats is None else f"{taken} / {seats}"
+    published = int(meeting.get("published") or 0)
+    status = "опубликована" if published else "снята"
+    return (
+        f"#{meeting['id']}  {format_when_safe(meeting['starts_at'])}\n"
+        f"{format_place(meeting)}\n"
+        f"{meeting.get('topic') or '—'}\n"
+        f"RSVP: {seats_txt}  ·  {status}"
     )
 
 

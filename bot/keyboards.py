@@ -34,6 +34,15 @@ BTN_NEW_MEMBERS = "Новые участники недели"
 BTN_SEARCH_NICHES = "Поиск по нишам"
 BTN_BACK_MENU = "← В меню"
 
+# Admin panel
+BTN_ADMIN_APPS = "📋 Заявки"
+BTN_ADMIN_MEMBERS = "👥 Участники"
+BTN_ADMIN_FIND = "🔎 Найти"
+BTN_ADMIN_MEETINGS = "📅 Все встречи"
+BTN_ADMIN_CREATE = "➕ Новая встреча"
+BTN_ADMIN_STATS = "📊 Статистика"
+BTN_ADMIN_EXIT = "← Выйти из админки"
+
 CITIES = ["Белград", "Нови-Сад", "Ниш", "Другое"]
 GOALS = [
     "Новые знакомства",
@@ -216,12 +225,52 @@ def meeting_publish_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-def admin_extra_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="Создать встречу", callback_data="meetadm:create")],
-        ]
+def admin_panel_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=BTN_ADMIN_APPS)],
+            [KeyboardButton(text=BTN_ADMIN_MEMBERS), KeyboardButton(text=BTN_ADMIN_FIND)],
+            [KeyboardButton(text=BTN_ADMIN_MEETINGS), KeyboardButton(text=BTN_ADMIN_CREATE)],
+            [KeyboardButton(text=BTN_ADMIN_STATS)],
+            [KeyboardButton(text=BTN_ADMIN_EXIT)],
+        ],
+        resize_keyboard=True,
     )
+
+
+def admin_meetings_keyboard(
+    upcoming: list[dict],
+    past: list[dict] | None = None,
+) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    for meeting in upcoming[:8]:
+        meeting_id = int(meeting["id"])
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=f"Кто записался #{meeting_id}",
+                    callback_data=f"meetadm:who:{meeting_id}",
+                ),
+                InlineKeyboardButton(
+                    text=f"Снять #{meeting_id}",
+                    callback_data=f"meetadm:drop:{meeting_id}",
+                ),
+            ]
+        )
+    for meeting in (past or [])[:4]:
+        meeting_id = int(meeting["id"])
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=f"Кто был #{meeting_id}",
+                    callback_data=f"meetadm:who:{meeting_id}",
+                )
+            ]
+        )
+    rows.append(
+        [InlineKeyboardButton(text="Создать встречу", callback_data="meetadm:create")]
+    )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def events_keyboard() -> InlineKeyboardMarkup:
@@ -256,16 +305,49 @@ def application_admin_keyboard(telegram_id: int) -> InlineKeyboardMarkup:
 
 
 def member_admin_keyboard(telegram_id: int) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
+    return admin_user_actions_keyboard({"telegram_id": telegram_id, "status": "active"})
+
+
+def admin_user_actions_keyboard(user: dict) -> InlineKeyboardMarkup:
+    telegram_id = int(user["telegram_id"])
+    status = user.get("status")
+    rows: list[list[InlineKeyboardButton]] = []
+    if status == "pending":
+        rows.append(
             [
+                InlineKeyboardButton(
+                    text="Одобрить",
+                    callback_data=f"admin:approve:{telegram_id}",
+                ),
+                InlineKeyboardButton(
+                    text="Отклонить",
+                    callback_data=f"admin:reject:{telegram_id}",
+                ),
+            ]
+        )
+    elif status == "rejected":
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text="Одобрить снова",
+                    callback_data=f"admin:approve:{telegram_id}",
+                )
+            ]
+        )
+    else:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text="Продлить 30 дней",
+                    callback_data=f"admin:renew:{telegram_id}",
+                ),
                 InlineKeyboardButton(
                     text="Закрыть доступ",
                     callback_data=f"admin:kick:{telegram_id}",
-                )
+                ),
             ]
-        ]
-    )
+        )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def member_card_keyboard(instagram: str | None, username: str | None) -> InlineKeyboardMarkup:
