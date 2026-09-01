@@ -267,7 +267,8 @@ def approve_member(db_path: Path, telegram_id: int, days: int = 30) -> dict[str,
                 is_member = 1,
                 tariff = 'START',
                 tariff_until = ?,
-                joined_at = COALESCE(joined_at, datetime('now'))
+                joined_at = COALESCE(joined_at, datetime('now')),
+                payment_claimed_at = COALESCE(payment_claimed_at, datetime('now'))
             WHERE telegram_id = ?
             """,
             (STATUS_ACTIVE, until, telegram_id),
