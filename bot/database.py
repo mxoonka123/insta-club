@@ -12,8 +12,11 @@ STATUS_REJECTED = "rejected"
 
 
 def get_connection(db_path: Path) -> sqlite3.Connection:
-    connection = sqlite3.connect(db_path)
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(db_path, timeout=30)
     connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA foreign_keys = ON")
+    connection.execute("PRAGMA journal_mode = WAL")
     return connection
 
 

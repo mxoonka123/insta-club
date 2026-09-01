@@ -3,7 +3,7 @@ from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
-from bot.config import ADMIN_IDS, DB_PATH
+from bot.config import ADMIN_IDS, DB_PATH, db_is_persistent
 from bot.database import (
     admin_stats,
     approve_member,
@@ -83,10 +83,26 @@ def _panel_text() -> str:
         f"Заявок на проверке: {stats['pending']}",
         f"Из них отметили оплату: {stats['paid_claims']}",
         f"Всего записей в базе: {stats['all_records']}",
-        "",
-        "Кнопки внизу — заявки, участники, поиск, встречи.",
-        "Чтобы выйти, нажмите «← Выйти из админки».",
     ]
+    if not db_is_persistent(DB_PATH):
+        lines.extend(
+            [
+                "",
+                "⚠️ База на временном диске Railway.",
+                "После Redeploy участники пропадут.",
+                "Volume mount: /data",
+                "Переменная: DB_PATH=/data/instaclub.db",
+            ]
+        )
+    lines.extend(
+        [
+            "",
+            f"Файл базы: <code>{DB_PATH}</code>",
+            "",
+            "Кнопки внизу — заявки, участники, поиск, встречи.",
+            "Чтобы выйти, нажмите «← Выйти из админки».",
+        ]
+    )
     if stats["by_city"]:
         lines.append("")
         lines.append("<b>По городам</b>")

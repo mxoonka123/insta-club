@@ -1,156 +1,172 @@
-# INSTA CLUB Bot
+# INSTA CLUB
 
-Telegram-бот закрытого сообщества предпринимателей и авторов контента в Сербии.
+Closed business community in Serbia for entrepreneurs and content creators.
 
-Репозиторий называется `telegram-profile-bot` — это техническое имя. Продукт в чате: **INSTA CLUB**.
+This repository is the Telegram bot that runs the club: applications, curator payments, membership, catalog, knowledge base, and monthly meetings (Belgrade / Novi Sad / online).
 
-Стек: Python 3.13, [aiogram 3](https://docs.aiogram.dev/), SQLite.
+The GitHub folder may still be named `telegram-profile-bot`. That is only the old technical name. **The product is INSTA CLUB.**
+
+Stack: Python 3.13, [aiogram 3](https://docs.aiogram.dev/), SQLite.
 
 ---
 
-## Как это работает
+## Why members disappear after deploy
+
+The bot **does** have a database (SQLite). On Railway the container disk is temporary. A Redeploy starts a new container, so `instaclub.db` is empty unless it lives on a **Volume**.
+
+That is why the admin panel showed 0 members after an update — not because the club logic was wiped, but because the file was not persistent.
+
+**Fix once in Railway (required for production):**
+
+1. Open the bot service → **Volumes** → **Add Volume**
+2. Mount path: `/data`
+3. Variables: `DB_PATH=/data/instaclub.db`
+4. **Redeploy**
+
+If the volume is missing, organizers get a warning in Telegram at startup and a red note in the admin panel (`админ`).
+
+If you already stored data in `/data/profiles.db`, the bot keeps using that file so nothing is abandoned.
+
+---
+
+## Product
+
+**Tariff START — 19 € / month**
+
+- Instagram support
+- closed business community
+- one club meeting per month (offline Belgrade, offline Novi Sad, or online)
+- one 30-minute Welcome review in month 1
+
+Organizers choose the meeting format each month. The promise to members is one meeting per month, not “always offline in one city”.
+
+### Member journey
 
 ```text
 /start
-  → заявка (имя, город, сфера, Instagram, цель)
-  → «Я оплатил»
-  → админ одобряет
-  → меню клуба
+  → application (name, city, business, Instagram, goal)
+  → pay the curator, then «Я оплатил»
+  → organizer taps Одобрить
+  → club menu
 ```
 
-После входа участник видит: сообщество, базу знаний, встречи, подписку, рефералку, профиль.
+Club menu: community, knowledge base, meetings, subscription, referral, profile.
 
-Тариф **START — 19 € / месяц**:
-- Instagram-поддержка
-- закрытое бизнес-сообщество
-- одна клубная встреча в месяц (офлайн в Белграде / Нови-Саде или online)
-- разовый Welcome-разбор 30 минут в первый месяц
+### Organizer journey
 
-Формат каждой встречи выбирают организаторы. Обещание участнику — одна встреча в месяц, а не «всегда офлайн в одном городе».
+Type **админ** in the bot (your numeric Telegram ID must be in `ADMIN_IDS`).
 
----
-
-## Для организатора
-
-Нужен свой Telegram ID в переменной `ADMIN_IDS`. Узнать ID: [@userinfobot](https://t.me/userinfobot).
-
-Напишите в боте **админ** (или `/admin`) — откроется панель с кнопками:
-
-| Кнопка | Что делает |
+| Button | Action |
 |---|---|
-| Заявки | список заявок, одобрить / отклонить |
-| Участники | кто в базе, продлить / закрыть доступ |
-| Найти | имя, @ник или Telegram ID |
-| Все встречи | ближайшие, прошедшие, кто записался |
-| Новая встреча | создать и опубликовать встречу |
-| Статистика | числа по клубу |
-| Выйти из админки | вернуть обычное меню |
+| Заявки | approve / reject applications |
+| Участники | list members, renew or revoke access |
+| Найти | name, @username, or Telegram ID |
+| Все встречи | upcoming and past, RSVP list |
+| Новая встреча | publish a meeting (broadcast + reminders) |
+| Статистика | club numbers |
+| Выйти из админки | back to the normal menu |
 
-«Я оплатил» нажимает участник. Отдельной кнопки «отметить оплату» у админа нет: **Одобрить** и есть подтверждение оплаты и открытие доступа.
+«Я оплатил» is pressed by the **member**. **Одобрить** is the organizer confirming payment and opening access. There is no separate “mark as paid” button.
 
-После публикации встречи бот рассылает анонс участникам, собирает кнопки «Я участвую» и шлёт напоминания за сутки и за 2 часа тем, кто записался.
-
-На ближайшей встрече можно снять публикацию — участники её больше не видят.
-
-Кикнутый человек снова видит стартовый экран и может подать заявку заново.
+Kicked members see the welcome screen again and can apply from scratch.
 
 ---
 
-## Для участника
+## Demo for a reviewer
 
-| Команда | Зачем |
-|---|---|
-| `/start` | главный экран |
-| `/menu` | меню клуба (если доступ уже есть) |
-| `/cancel` | отменить текущий шаг анкеты |
+1. Open the live bot in Telegram (ask the owner for the `@` username).
+2. `/start` → walk through the application as a new member.
+3. In a second account (organizer): type `админ` → **Заявки** → **Одобрить**.
+4. Back on the member account: club menu, **Встречи клуба**.
+5. Organizer: **Новая встреча** (date like `12.09.2026`) → publish. Member gets the announcement.
+
+Do not enable `SEED_DEMO=1` on the production Railway service.
 
 ---
 
-## Переменные окружения
+## Environment variables
 
-Скопируй `.env.example` в `.env`. Токен в git не попадает.
+Copy `.env.example` to `.env` locally. Never commit `.env` (the bot token lives there).
 
-| Переменная | Обязательно | Пример | Смысл |
+| Variable | Required | Example | Meaning |
 |---|---|---|---|
-| `BOT_TOKEN` | да | `123456:ABC...` | токен от [@BotFather](https://t.me/BotFather) |
-| `ADMIN_IDS` | да, иначе нет админки | `318427459` | Telegram ID организаторов, через запятую |
-| `CURATOR_USERNAME` | да | `ljudmila_solo` | ник куратора без `@` |
-| `BUSINESS_PRICE` | нет | `19 € / месяц` | цена на экране тарифа |
-| `PAYMENT_DETAILS` | нет | текст как оплатить | инструкция после заявки |
-| `DB_PATH` | на Railway — да | `/data/profiles.db` | файл SQLite |
-| `BOT_USERNAME` | нет | заполняется сам | нужен для реферальной ссылки |
-| `SEED_DEMO` | нет | `1` | тестовые карточки в каталоге |
+| `BOT_TOKEN` | yes | `123456:ABC...` | from [@BotFather](https://t.me/BotFather) |
+| `ADMIN_IDS` | yes | `318427459` | organizer Telegram IDs, comma-separated. Get ID from [@userinfobot](https://t.me/userinfobot) — digits, not `@username` |
+| `CURATOR_USERNAME` | yes | `ljudmila_solo` | curator nick without `@` |
+| `BUSINESS_PRICE` | no | `19 € / месяц` | price on the tariff screen |
+| `PAYMENT_DETAILS` | no | payment text | shown after the application |
+| `DB_PATH` | **yes on Railway** | `/data/instaclub.db` | SQLite file on the Volume |
+| `BOT_USERNAME` | no | filled automatically | referral links |
+| `SEED_DEMO` | no | `1` | demo catalog cards only if the database is empty |
 
 ---
 
-## Запуск на компьютере
+## Run locally
 
-Нужен Python 3.10+.
+Python 3.10+. Use **either** local polling **or** Railway — the same `BOT_TOKEN` cannot run in two places at once.
 
-```powershell
-cd $env:USERPROFILE\telegram-profile-bot
+```bash
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+source .venv/bin/activate          # Windows: .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-Copy-Item .env.example .env
+cp .env.example .env               # Windows: Copy-Item .env.example .env
 ```
 
-Открой `.env`, вставь `BOT_TOKEN` и `ADMIN_IDS`.
+Put `BOT_TOKEN` and `ADMIN_IDS` into `.env`, then:
 
-```powershell
+```bash
 python -m bot.main
 ```
 
-В Telegram напиши боту `/start`. Один токен нельзя запускать сразу локально и на Railway — будет конфликт.
+Local SQLite file: `instaclub.db` in the project folder (gitignored).
 
 ---
 
 ## Railway
 
-1. Сервис привязан к этому GitHub-репозиторию: push в `main` → деплой.
-2. **Variables** — те же ключи, что в таблице выше.
-3. **Volume**, mount path: `/data`  
-   Variable: `DB_PATH=/data/profiles.db`  
-   Без volume база стирается на каждом редеплое (заявки и встречи пропадут).
+1. Service is connected to this GitHub repo: push to `main` deploys INSTA CLUB.
+2. **Variables** — same keys as the table above.
+3. **Volume** — mount `/data`, `DB_PATH=/data/instaclub.db` (see the warning at the top).
+4. Start command is already in `railway.toml`: `python -m bot.main`.
 
-Start command уже задан в `railway.toml`: `python -m bot.main`.
+After a merge to `main`, wait for the deploy to finish, then type `админ` in Telegram. If the Volume is missing, the bot will say so.
 
 ---
 
-## Структура кода
+## Repository layout
 
 ```text
 bot/
-  main.py            запуск, база, напоминания о встречах
-  config.py          переменные окружения
-  database.py        SQLite: участники, оплаты, встречи
-  texts.py           тексты, которые видит пользователь
-  keyboards.py       кнопки
-  states.py          шаги анкеты и создания встречи
-  meetings.py        формат встреч (дата, город, online)
-  reminders.py       напоминания за 24 ч и за 2 ч
-  notify.py          сообщения админам
-  helpers.py         карточки, проверка доступа
+  main.py            start, SQLite, meeting reminders
+  config.py          env + where the database file lives
+  database.py        members, payments, meetings
+  texts.py           copy members see
+  keyboards.py       buttons
+  states.py          application + meeting wizard
+  meetings.py        dates (Europe/Belgrade) and formatting
+  reminders.py       24h and 2h reminders
+  notify.py          messages to organizers
+  helpers.py         cards, access checks
   handlers/
-    start.py         /start, тарифы, партнёры
-    onboarding.py    анкета
+    start.py         /start, tariffs, partners
+    onboarding.py    application
     payment.py       «Я оплатил»
-    admin.py         панель: заявки, участники, поиск, встречи
-    events.py        встречи для участников и создание встречи
-    community.py     каталог, поиск, представление
-    knowledge.py     база знаний
-    subscription.py  тариф и продление
-    referral.py      пригласить друга
-    profile.py       профиль
+    admin.py         organizer panel
+    events.py        meetings
+    community.py     catalog
+    knowledge.py     knowledge base
+    subscription.py  tariff
+    referral.py      invite a friend
+    profile.py       profile
 ```
 
-Тексты клуба правятся в `bot/texts.py`. Кнопки — в `bot/keyboards.py`.
+Change member-facing wording in `bot/texts.py`. Change buttons in `bot/keyboards.py`.
 
 ---
 
-## Что сознательно упрощено
+## Intentional limits
 
-- SQLite, не PostgreSQL
-- Состояния диалога в памяти процесса (после рестарта незавершённая анкета сбрасывается — нужен `/start`)
-- Оплата вручную через куратора, без Stripe
-- Админка командами в Telegram, без сайта
+- SQLite, not PostgreSQL (one file; must sit on a Railway Volume)
+- Dialog state is in process memory (an unfinished application resets after restart — `/start` again)
+- Payment is via the curator, not Stripe
+- Organizers work inside Telegram, there is no web admin
