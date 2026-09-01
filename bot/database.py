@@ -78,6 +78,33 @@ def init_db(db_path: Path) -> None:
                 created_at TEXT NOT NULL DEFAULT (datetime('now')),
                 FOREIGN KEY (telegram_id) REFERENCES users(telegram_id)
             );
+
+            CREATE TABLE IF NOT EXISTS meetings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                format TEXT NOT NULL,
+                city TEXT NOT NULL,
+                starts_at TEXT NOT NULL,
+                topic TEXT NOT NULL,
+                seats INTEGER,
+                published INTEGER NOT NULL DEFAULT 0,
+                reminder_day_sent INTEGER NOT NULL DEFAULT 0,
+                reminder_hour_sent INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS meeting_rsvps (
+                meeting_id INTEGER NOT NULL,
+                telegram_id INTEGER NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                PRIMARY KEY (meeting_id, telegram_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS meeting_topics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                telegram_id INTEGER NOT NULL,
+                topic TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
             """
         )
         connection.commit()
@@ -202,7 +229,7 @@ def complete_onboarding(
                 niche = ?,
                 instagram = ?,
                 goal = ?,
-                tariff = 'Business',
+                tariff = 'START',
                 tariff_until = NULL,
                 joined_at = NULL,
                 is_member = 0,
@@ -238,7 +265,7 @@ def approve_member(db_path: Path, telegram_id: int, days: int = 30) -> dict[str,
             UPDATE users
             SET status = ?,
                 is_member = 1,
-                tariff = 'Business',
+                tariff = 'START',
                 tariff_until = ?,
                 joined_at = COALESCE(joined_at, datetime('now'))
             WHERE telegram_id = ?
@@ -250,7 +277,7 @@ def approve_member(db_path: Path, telegram_id: int, days: int = 30) -> dict[str,
             INSERT INTO payments (telegram_id, amount, description)
             VALUES (?, ?, ?)
             """,
-            (telegram_id, "Business", "Подтверждение оплаты и доступ в клуб"),
+            (telegram_id, "19 €", "Подтверждение оплаты START"),
         )
         connection.commit()
     return get_user(db_path, telegram_id)
@@ -350,7 +377,7 @@ def renew_subscription(db_path: Path, telegram_id: int, days: int = 30) -> dict[
             INSERT INTO payments (telegram_id, amount, description)
             VALUES (?, ?, ?)
             """,
-            (telegram_id, "Business", "Продление подписки"),
+            (telegram_id, "19 €", "Продление START"),
         )
         connection.commit()
     return get_user(db_path, telegram_id)
@@ -523,3 +550,187 @@ def list_all_users(db_path: Path, limit: int = 30) -> list[dict[str, Any]]:
             (limit,),
         ).fetchall()
         return [dict(row) for row in rows]
+
+
+def list_active_members(db_path: Path) -> list[dict[str, Any]]:
+    with get_connection(db_path) as connection:
+        rows = connection.execute(
+            """
+            SELECT * FROM users
+            WHERE is_member = 1 AND status = ?
+            """,
+            (STATUS_ACTIVE,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def create_meeting(
+    db_path: Path,
+    *,
+    format: str,
+    city: str,
+    starts_at: str,
+    topic: str,
+    seats: int | None,
+) -> dict[str, Any]:
+    with get_connection(db_path) as connection:
+        cursor = connection.execute(
+            """
+            INSERT INTO meetings (format, city, starts_at, topic, seats, published)
+            VALUES (?, ?, ?, ?, ?, 1)
+            """,
+            (format, city, starts_at, topic, seats),
+        )
+        meeting_id = cursor.lastrowid
+        connection.commit()
+        row = connection.execute(
+            "SELECT * FROM meetings WHERE id = ?",
+            (meeting_id,),
+        ).fetchone()
+        return dict(row)
+
+
+def get_meeting(db_path: Path, meeting_id: int) -> dict[str, Any] | None:
+    with get_connection(db_path) as connection:
+        row = connection.execute(
+            "SELECT * FROM meetings WHERE id = ?",
+            (meeting_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def get_upcoming_meeting(db_path: Path) -> dict[str, Any] | None:
+    now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
+    with get_connection(db_path) as connection:
+        row = connection.execute(
+            """
+            SELECT * FROM meetings
+            WHERE published = 1 AND starts_at >= ?
+            ORDER BY starts_at ASC
+            LIMIT 1
+            """,
+            (now,),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def list_past_meetings(db_path: Path, limit: int = 10) -> list[dict[str, Any]]:
+    now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
+    with get_connection(db_path) as connection:
+        rows = connection.execute(
+            """
+            SELECT * FROM meetings
+            WHERE published = 1 AND starts_at < ?
+            ORDER BY starts_at DESC
+            LIMIT ?
+            """,
+            (now, limit),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def count_rsvps(db_path: Path, meeting_id: int) -> int:
+    with get_connection(db_path) as connection:
+        row = connection.execute(
+            "SELECT COUNT(*) AS c FROM meeting_rsvps WHERE meeting_id = ?",
+            (meeting_id,),
+        ).fetchone()
+        return int(row["c"])
+
+
+def has_rsvp(db_path: Path, meeting_id: int, telegram_id: int) -> bool:
+    with get_connection(db_path) as connection:
+        row = connection.execute(
+            """
+            SELECT 1 FROM meeting_rsvps
+            WHERE meeting_id = ? AND telegram_id = ?
+            """,
+            (meeting_id, telegram_id),
+        ).fetchone()
+        return row is not None
+
+
+def list_rsvp_ids(db_path: Path, meeting_id: int) -> list[int]:
+    with get_connection(db_path) as connection:
+        rows = connection.execute(
+            "SELECT telegram_id FROM meeting_rsvps WHERE meeting_id = ?",
+            (meeting_id,),
+        ).fetchall()
+        return [int(row["telegram_id"]) for row in rows]
+
+
+def rsvp_meeting(db_path: Path, meeting_id: int, telegram_id: int) -> str:
+    meeting = get_meeting(db_path, meeting_id)
+    if not meeting:
+        return "missing"
+    if has_rsvp(db_path, meeting_id, telegram_id):
+        return "already"
+    taken = count_rsvps(db_path, meeting_id)
+    seats = meeting.get("seats")
+    if seats is not None and taken >= int(seats):
+        return "full"
+    with get_connection(db_path) as connection:
+        connection.execute(
+            """
+            INSERT OR IGNORE INTO meeting_rsvps (meeting_id, telegram_id)
+            VALUES (?, ?)
+            """,
+            (meeting_id, telegram_id),
+        )
+        connection.commit()
+    return "ok"
+
+
+def cancel_rsvp(db_path: Path, meeting_id: int, telegram_id: int) -> None:
+    with get_connection(db_path) as connection:
+        connection.execute(
+            "DELETE FROM meeting_rsvps WHERE meeting_id = ? AND telegram_id = ?",
+            (meeting_id, telegram_id),
+        )
+        connection.commit()
+
+
+def add_topic_suggestion(db_path: Path, telegram_id: int, topic: str) -> None:
+    with get_connection(db_path) as connection:
+        connection.execute(
+            "INSERT INTO meeting_topics (telegram_id, topic) VALUES (?, ?)",
+            (telegram_id, topic),
+        )
+        connection.commit()
+
+
+def meetings_for_reminder(db_path: Path, kind: str) -> list[dict[str, Any]]:
+    now = datetime.utcnow()
+    if kind == "day":
+        start = now + timedelta(hours=22)
+        end = now + timedelta(hours=26)
+        flag = "reminder_day_sent"
+    else:
+        start = now + timedelta(minutes=90)
+        end = now + timedelta(minutes=150)
+        flag = "reminder_hour_sent"
+    with get_connection(db_path) as connection:
+        rows = connection.execute(
+            f"""
+            SELECT * FROM meetings
+            WHERE published = 1
+              AND {flag} = 0
+              AND starts_at >= ?
+              AND starts_at <= ?
+            """,
+            (
+                start.strftime("%Y-%m-%dT%H:%M:%S"),
+                end.strftime("%Y-%m-%dT%H:%M:%S"),
+            ),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def mark_reminder_sent(db_path: Path, meeting_id: int, kind: str) -> None:
+    column = "reminder_day_sent" if kind == "day" else "reminder_hour_sent"
+    with get_connection(db_path) as connection:
+        connection.execute(
+            f"UPDATE meetings SET {column} = 1 WHERE id = ?",
+            (meeting_id,),
+        )
+        connection.commit()

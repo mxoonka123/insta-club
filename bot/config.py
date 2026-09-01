@@ -24,7 +24,7 @@ BOT_USERNAME = os.getenv("BOT_USERNAME", "").lstrip("@")
 CURATOR_USERNAME = os.getenv("CURATOR_USERNAME", "instaclub_curator").lstrip("@")
 SEED_DEMO = os.getenv("SEED_DEMO", "").strip() in {"1", "true", "yes"}
 
-BUSINESS_PRICE = os.getenv("BUSINESS_PRICE", "9 900 RSD / месяц")
+BUSINESS_PRICE = os.getenv("BUSINESS_PRICE", "19 € / месяц")
 PAYMENT_DETAILS = os.getenv(
     "PAYMENT_DETAILS",
     "После оплаты напишите куратору и нажмите «Я оплатил» в боте.\n"

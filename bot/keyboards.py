@@ -21,7 +21,7 @@ BTN_MY_STATUS = "Статус заявки"
 BTN_HOME = "🏠 Главная"
 BTN_COMMUNITY = "👥 Сообщество"
 BTN_KNOWLEDGE = "📚 База знаний"
-BTN_EVENTS = "🎟 Мероприятия"
+BTN_EVENTS = "📅 Встречи клуба"
 BTN_SUBSCRIPTION = "💳 Подписка"
 BTN_REFERRAL = "🎁 Пригласить друга"
 BTN_PROFILE = "⚙ Профиль"
@@ -165,19 +165,67 @@ def knowledge_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-def events_keyboard() -> InlineKeyboardMarkup:
-    buttons = [
-        ("Завтрак предпринимателей", "event:breakfast"),
-        ("Контент-день", "event:content_day"),
-        ("Мастермайнд", "event:mastermind"),
-        ("Воркшоп", "event:workshop"),
-    ]
+def meetings_hub_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text=title, callback_data=data)]
-            for title, data in buttons
+            [InlineKeyboardButton(text="Ближайшая встреча", callback_data="meet:next")],
+            [InlineKeyboardButton(text="Предложить тему", callback_data="meet:topic")],
+            [InlineKeyboardButton(text="Архив встреч", callback_data="meet:archive")],
         ]
     )
+
+
+def meeting_rsvp_keyboard(meeting_id: int, already: bool) -> InlineKeyboardMarkup:
+    if already:
+        label = "Вы записаны ✓  ·  отменить"
+        data = f"meet:cancel:{meeting_id}"
+    else:
+        label = "Я участвую"
+        data = f"meet:rsvp:{meeting_id}"
+    return InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text=label, callback_data=data)]]
+    )
+
+
+def meeting_format_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Офлайн", callback_data="meetadm:fmt:offline")],
+            [InlineKeyboardButton(text="Онлайн", callback_data="meetadm:fmt:online")],
+            [InlineKeyboardButton(text="Отмена", callback_data="meetadm:cancel")],
+        ]
+    )
+
+
+def meeting_city_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Белград", callback_data="meetadm:city:Белград")],
+            [InlineKeyboardButton(text="Нови-Сад", callback_data="meetadm:city:Нови-Сад")],
+            [InlineKeyboardButton(text="Отмена", callback_data="meetadm:cancel")],
+        ]
+    )
+
+
+def meeting_publish_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Опубликовать", callback_data="meetadm:publish")],
+            [InlineKeyboardButton(text="Отмена", callback_data="meetadm:cancel")],
+        ]
+    )
+
+
+def admin_extra_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Создать встречу", callback_data="meetadm:create")],
+        ]
+    )
+
+
+def events_keyboard() -> InlineKeyboardMarkup:
+    return meetings_hub_keyboard()
 
 
 def subscription_keyboard() -> InlineKeyboardMarkup:

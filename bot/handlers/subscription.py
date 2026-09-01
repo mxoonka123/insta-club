@@ -22,7 +22,7 @@ async def subscription_entry(message: Message, state: FSMContext) -> None:
 
     text = (
         "💳 <b>Подписка</b>\n\n"
-        f"Ваш тариф: <b>{user.get('tariff') or 'Business'}</b>\n"
+        f"Ваш тариф: <b>{user.get('tariff') or 'START'}</b>\n"
         f"Оплачен до: <b>{format_date(user.get('tariff_until'))}</b>\n\n"
         "Продление: оплатите тариф и нажмите «Продлить» — куратор подтвердит."
     )

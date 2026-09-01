@@ -17,6 +17,7 @@ from bot.database import (
 from bot.helpers import application_card
 from bot.keyboards import (
     after_approval_keyboard,
+    admin_extra_keyboard,
     application_admin_keyboard,
     main_menu_keyboard,
     member_admin_keyboard,
@@ -71,6 +72,7 @@ async def admin_panel(message: Message) -> None:
         "/reject ID — отклонить заявку",
         "/kick ID — закрыть доступ",
         "/renew ID — продлить на 30 дней",
+        "/meeting — создать встречу",
         "",
         "<b>По городам</b>",
     ]
@@ -82,7 +84,7 @@ async def admin_panel(message: Message) -> None:
     for row in stats["by_niche"][:8]:
         lines.append(f"• {row['niche']}: {row['c']}")
 
-    await message.answer("\n".join(lines))
+    await message.answer("\n".join(lines), reply_markup=admin_extra_keyboard())
 
 
 @router.message(Command("members"))

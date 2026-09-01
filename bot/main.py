@@ -11,6 +11,7 @@ import bot.config as config
 from bot.config import BOT_TOKEN, DB_PATH
 from bot.database import init_db
 from bot.handlers import get_routers
+from bot.reminders import reminder_loop
 
 
 async def main() -> None:
@@ -37,6 +38,7 @@ async def main() -> None:
         dp.include_router(router)
 
     await bot.delete_webhook(drop_pending_updates=True)
+    asyncio.create_task(reminder_loop(bot))
     logging.info("INSTA CLUB bot запущен")
     await dp.start_polling(bot)
 

@@ -75,7 +75,7 @@ async def my_status(message: Message) -> None:
 
     text = (
         f"Статус: <b>{status_label(user)}</b>\n"
-        f"Тариф: {user.get('tariff') or 'Business'}\n"
+        f"Тариф: {user.get('tariff') or 'START'}\n"
     )
     if user.get("status") == STATUS_PENDING:
         text += "\n" + texts.PENDING_ACCESS

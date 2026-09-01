@@ -17,3 +17,15 @@ class Introduce(StatesGroup):
 
 class SearchPartners(StatesGroup):
     query = State()
+
+
+class SuggestTopic(StatesGroup):
+    text = State()
+
+
+class CreateMeeting(StatesGroup):
+    date = State()
+    time = State()
+    topic = State()
+    seats = State()
+    confirm = State()
