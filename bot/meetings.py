@@ -26,7 +26,12 @@ MONTHS = [
 
 def parse_local_datetime(date_text: str, time_text: str) -> datetime | None:
     try:
-        day, month, year = [int(part) for part in date_text.replace("/", ".").split(".")]
+        parts = date_text.replace("/", ".").split(".")
+        if len(parts) != 3 or len(parts[2]) != 4:
+            return None
+        day, month, year = [int(part) for part in parts]
+        if year < 2020:
+            return None
         hour, minute = [int(part) for part in time_text.replace(".", ":").split(":")]
         local = datetime(year, month, day, hour, minute, tzinfo=BELGRADE)
         return local.astimezone(timezone.utc).replace(tzinfo=None)
