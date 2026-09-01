@@ -247,8 +247,9 @@ async def create_meeting_city(callback: CallbackQuery, state: FSMContext) -> Non
 @router.message(CreateMeeting.date, F.text, ~F.text.startswith("/"))
 async def create_meeting_date(message: Message, state: FSMContext) -> None:
     raw = (message.text or "").strip()
-    if len(raw.split(".")) != 3:
-        await message.answer("Нужна дата вида 12.09.2026")
+    parts = raw.replace("/", ".").split(".")
+    if len(parts) != 3 or len(parts[2]) != 4:
+        await message.answer("Нужна дата с годом из 4 цифр, например 12.09.2026")
         return
     await state.update_data(date=raw)
     await state.set_state(CreateMeeting.time)
@@ -263,7 +264,7 @@ async def create_meeting_time(message: Message, state: FSMContext) -> None:
     if not starts:
         await message.answer("Нужно время вида 19:00")
         return
-    await state.update_data(time=raw, starts_at=starts.strftime("%Y-%m-%dT%H:%M:%S"))
+    await state.update_data(time=raw, starts_at=starts.isoformat(timespec="seconds"))
     await state.set_state(CreateMeeting.topic)
     await message.answer("Тема встречи:")
 
@@ -299,11 +300,21 @@ async def create_meeting_seats(message: Message, state: FSMContext) -> None:
         "topic": data.get("topic"),
         "seats": seats,
     }
-    await message.answer(
-        "Проверьте встречу:\n\n" + format_meeting(preview, DB_PATH).replace(
+    try:
+        body = format_meeting(preview, DB_PATH).replace(
             "<b>СЛЕДУЮЩАЯ ВСТРЕЧА ✦</b>",
             "<b>Черновик встречи</b>",
-        ),
+        )
+    except Exception:
+        body = (
+            "<b>Черновик встречи</b>\n\n"
+            f"{preview.get('city')} · {preview.get('format')}\n"
+            f"Тема: {preview.get('topic')}\n"
+            f"Когда: {data.get('date')} {data.get('time')}\n"
+            f"Мест: {seats if seats is not None else 'без лимита'}"
+        )
+    await message.answer(
+        "Проверьте встречу:\n\n" + body,
         reply_markup=meeting_publish_keyboard(),
     )
 
