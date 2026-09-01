@@ -4,7 +4,7 @@ Closed business community in Serbia for entrepreneurs and content creators.
 
 This repository is the Telegram bot that runs the club: applications, curator payments, membership, catalog, knowledge base, and monthly meetings (Belgrade / Novi Sad / online).
 
-The GitHub folder may still be named `telegram-profile-bot`. That is only the old technical name. **The product is INSTA CLUB.**
+The GitHub repository is [insta-club](https://github.com/mxoonka123/insta-club). **The product is INSTA CLUB.**
 
 Stack: Python 3.13, [aiogram 3](https://docs.aiogram.dev/), SQLite.
 
