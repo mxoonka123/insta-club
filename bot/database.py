@@ -629,6 +629,44 @@ def list_past_meetings(db_path: Path, limit: int = 10) -> list[dict[str, Any]]:
         return [dict(row) for row in rows]
 
 
+def list_upcoming_meetings(db_path: Path, limit: int = 20) -> list[dict[str, Any]]:
+    now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
+    with get_connection(db_path) as connection:
+        rows = connection.execute(
+            """
+            SELECT * FROM meetings
+            WHERE published = 1 AND starts_at >= ?
+            ORDER BY starts_at ASC
+            LIMIT ?
+            """,
+            (now, limit),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def list_meetings_for_admin(db_path: Path, limit: int = 40) -> list[dict[str, Any]]:
+    with get_connection(db_path) as connection:
+        rows = connection.execute(
+            """
+            SELECT * FROM meetings
+            ORDER BY starts_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def unpublish_meeting(db_path: Path, meeting_id: int) -> dict[str, Any] | None:
+    with get_connection(db_path) as connection:
+        connection.execute(
+            "UPDATE meetings SET published = 0 WHERE id = ?",
+            (meeting_id,),
+        )
+        connection.commit()
+    return get_meeting(db_path, meeting_id)
+
+
 def count_rsvps(db_path: Path, meeting_id: int) -> int:
     with get_connection(db_path) as connection:
         row = connection.execute(
@@ -657,6 +695,25 @@ def list_rsvp_ids(db_path: Path, meeting_id: int) -> list[int]:
             (meeting_id,),
         ).fetchall()
         return [int(row["telegram_id"]) for row in rows]
+
+
+def list_rsvp_users(db_path: Path, meeting_id: int) -> list[dict[str, Any]]:
+    with get_connection(db_path) as connection:
+        rows = connection.execute(
+            """
+            SELECT
+                r.telegram_id AS telegram_id,
+                u.full_name AS full_name,
+                u.username AS username,
+                u.city AS city
+            FROM meeting_rsvps r
+            LEFT JOIN users u ON u.telegram_id = r.telegram_id
+            WHERE r.meeting_id = ?
+            ORDER BY r.created_at ASC
+            """,
+            (meeting_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
 
 
 def rsvp_meeting(db_path: Path, meeting_id: int, telegram_id: int) -> str:

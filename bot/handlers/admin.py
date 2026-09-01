@@ -72,6 +72,7 @@ async def admin_panel(message: Message) -> None:
         "/reject ID — отклонить заявку",
         "/kick ID — закрыть доступ",
         "/renew ID — продлить на 30 дней",
+        "/meetings — все встречи: ближайшие и архив",
         "/meeting — создать встречу",
         "",
         "<b>По городам</b>",
