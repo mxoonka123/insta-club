@@ -51,11 +51,24 @@ def status_label(user: dict) -> str:
     return "анкета не завершена"
 
 
+def _payment_line(user: dict) -> str:
+    if user.get("status") == STATUS_ACTIVE:
+        until = format_date(user.get("tariff_until"))
+        return f"Оплата: подтверждена\nДоступ до: {until}"
+    if user.get("payment_claimed_at"):
+        return f"Нажал «Я оплатил»: {format_date(user.get('payment_claimed_at'))}"
+    return "Нажал «Я оплатил»: ещё нет"
+
+
 def application_card(user: dict) -> str:
     username = f"@{user['username']}" if user.get("username") else "—"
-    paid = format_date(user.get("payment_claimed_at")) if user.get("payment_claimed_at") else "ещё нет"
+    title = (
+        "Участник INSTA CLUB"
+        if user.get("status") == STATUS_ACTIVE
+        else "Заявка в INSTA CLUB"
+    )
     return (
-        "<b>Заявка в INSTA CLUB</b>\n"
+        f"<b>{title}</b>\n"
         f"ID: <code>{user.get('telegram_id')}</code>\n"
         f"Username: {username}\n"
         f"Имя: {user.get('full_name') or '—'}\n"
@@ -64,7 +77,7 @@ def application_card(user: dict) -> str:
         f"Instagram: {user.get('instagram') or '—'}\n"
         f"Цель: {user.get('goal') or '—'}\n"
         f"Статус: {status_label(user)}\n"
-        f"Оплата отмечена: {paid}"
+        f"{_payment_line(user)}"
     )
 
 
