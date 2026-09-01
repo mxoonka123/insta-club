@@ -13,12 +13,16 @@ from bot.database import (
     get_upcoming_meeting,
     has_rsvp,
     list_active_members,
+    list_meetings_for_admin,
     list_past_meetings,
+    list_rsvp_users,
     rsvp_meeting,
+    unpublish_meeting,
 )
 from bot.helpers import require_member
 from bot.keyboards import (
     BTN_EVENTS,
+    admin_meetings_keyboard,
     main_menu_keyboard,
     meeting_city_keyboard,
     meeting_format_keyboard,
@@ -27,7 +31,14 @@ from bot.keyboards import (
     meetings_hub_keyboard,
     remove_keyboard,
 )
-from bot.meetings import format_announce, format_archive_item, format_meeting, parse_local_datetime
+from bot.meetings import (
+    format_admin_meeting_line,
+    format_announce,
+    format_archive_item,
+    format_meeting,
+    meeting_is_upcoming,
+    parse_local_datetime,
+)
 from bot.notify import notify_admins
 from bot.states import CreateMeeting, SuggestTopic
 from bot import texts
@@ -175,6 +186,150 @@ async def show_archive(callback: CallbackQuery) -> None:
         lines.append(format_archive_item(item, DB_PATH))
         lines.append("")
     await callback.message.answer("\n".join(lines).strip())
+
+
+def _admin_meetings_sections(meetings: list[dict]) -> tuple[list[dict], list[dict], list[dict]]:
+    upcoming: list[dict] = []
+    past: list[dict] = []
+    unpublished: list[dict] = []
+    for item in meetings:
+        if not int(item.get("published") or 0):
+            unpublished.append(item)
+        elif meeting_is_upcoming(item):
+            upcoming.append(item)
+        else:
+            past.append(item)
+    upcoming.sort(key=lambda row: str(row.get("starts_at") or ""))
+    past.sort(key=lambda row: str(row.get("starts_at") or ""), reverse=True)
+    unpublished.sort(key=lambda row: str(row.get("starts_at") or ""), reverse=True)
+    return upcoming, past, unpublished
+
+
+def _admin_meetings_text(meetings: list[dict]) -> str:
+    if not meetings:
+        return (
+            "<b>Встречи клуба</b>\n\n"
+            "Пока нет ни одной встречи.\n"
+            "Создайте первую: /meeting"
+        )
+
+    upcoming, past, unpublished = _admin_meetings_sections(meetings)
+    lines = ["<b>Встречи клуба</b>"]
+
+    def _append_group(title: str, items: list[dict]) -> None:
+        if not items:
+            return
+        lines.append("")
+        lines.append(f"<b>{title}</b>")
+        for item in items:
+            lines.append("")
+            lines.append(format_admin_meeting_line(item, DB_PATH))
+
+    _append_group("Ближайшие", upcoming)
+    _append_group("Прошедшие", past)
+    _append_group("Снятые с публикации", unpublished)
+
+    if not upcoming:
+        lines.append("")
+        lines.append("Ближайшей опубликованной встречи нет.")
+
+    text = "\n".join(lines).strip()
+    if len(text) > 3900:
+        text = text[:3900].rstrip() + "\n…"
+    return text
+
+
+async def _send_admin_meetings(message: Message) -> None:
+    meetings = list_meetings_for_admin(DB_PATH)
+    upcoming, past, _unpublished = _admin_meetings_sections(meetings)
+    await message.answer(
+        _admin_meetings_text(meetings),
+        reply_markup=admin_meetings_keyboard(upcoming, past),
+    )
+
+
+def _format_rsvp_list(meeting: dict, people: list[dict]) -> str:
+    taken = len(people)
+    seats = meeting.get("seats")
+    seats_txt = str(taken) if seats is None else f"{taken} / {seats}"
+    lines = [
+        f"<b>Запись на встречу #{meeting['id']}</b>",
+        format_admin_meeting_line(meeting, DB_PATH),
+        "",
+        f"Всего: {seats_txt}",
+    ]
+    if not people:
+        lines.append("Пока никто не записался.")
+        return "\n".join(lines)
+    lines.append("")
+    for person in people:
+        name = person.get("full_name") or "без имени"
+        username = person.get("username")
+        nick = f" @{username}" if username else ""
+        city = person.get("city") or "—"
+        telegram_id = person.get("telegram_id")
+        lines.append(f"• {name}{nick} · {city} · <code>{telegram_id}</code>")
+    text = "\n".join(lines)
+    if len(text) > 3900:
+        text = text[:3900].rstrip() + "\n…"
+    return text
+
+
+@router.message(Command("meetings"))
+async def admin_meetings_command(message: Message) -> None:
+    if not _is_admin(message.from_user.id if message.from_user else None):
+        return
+    await _send_admin_meetings(message)
+
+
+@router.callback_query(F.data == "meetadm:list")
+async def admin_meetings_button(callback: CallbackQuery) -> None:
+    if not _is_admin(callback.from_user.id if callback.from_user else None):
+        await callback.answer("Нет доступа", show_alert=True)
+        return
+    await callback.answer()
+    if callback.message:
+        await _send_admin_meetings(callback.message)
+
+
+@router.callback_query(F.data.startswith("meetadm:who:"))
+async def admin_meeting_who(callback: CallbackQuery) -> None:
+    if not _is_admin(callback.from_user.id if callback.from_user else None):
+        await callback.answer("Нет доступа", show_alert=True)
+        return
+    meeting_id = int((callback.data or "").split(":")[-1])
+    meeting = get_meeting(DB_PATH, meeting_id)
+    if not meeting:
+        await callback.answer("Встреча не найдена", show_alert=True)
+        return
+    await callback.answer()
+    people = list_rsvp_users(DB_PATH, meeting_id)
+    if callback.message:
+        await callback.message.answer(_format_rsvp_list(meeting, people))
+
+
+@router.callback_query(F.data.startswith("meetadm:drop:"))
+async def admin_meeting_unpublish(callback: CallbackQuery) -> None:
+    if not _is_admin(callback.from_user.id if callback.from_user else None):
+        await callback.answer("Нет доступа", show_alert=True)
+        return
+    meeting_id = int((callback.data or "").split(":")[-1])
+    meeting = get_meeting(DB_PATH, meeting_id)
+    if not meeting:
+        await callback.answer("Встреча не найдена", show_alert=True)
+        return
+    if not int(meeting.get("published") or 0):
+        await callback.answer("Уже снята", show_alert=True)
+        return
+    unpublish_meeting(DB_PATH, meeting_id)
+    await callback.answer("Снята с публикации")
+    if callback.message:
+        await callback.message.answer(
+            f"Встреча #{meeting_id} снята с публикации.\n"
+            "Участники её больше не видят, напоминания не уйдут.\n"
+            "Записи RSVP сохранены."
+        )
+        await _send_admin_meetings(callback.message)
 
 
 @router.message(Command("meeting"))

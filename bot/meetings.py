@@ -49,6 +49,19 @@ def format_when(starts_at: str) -> str:
     return f"{local.day} {MONTHS[local.month - 1]}, {local.strftime('%H:%M')}"
 
 
+def format_when_safe(starts_at: str) -> str:
+    try:
+        return format_when(starts_at)
+    except (ValueError, TypeError):
+        return starts_at or "—"
+
+
+def meeting_is_upcoming(meeting: dict) -> bool:
+    now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
+    starts = str(meeting.get("starts_at") or "")[:19]
+    return starts >= now
+
+
 def format_place(meeting: dict) -> str:
     if meeting.get("format") == "online":
         return "💻 ONLINE"
@@ -78,8 +91,22 @@ def format_meeting(meeting: dict, db_path) -> str:
 def format_archive_item(meeting: dict, db_path) -> str:
     taken = count_rsvps(db_path, int(meeting["id"]))
     return (
-        f"{format_when(meeting['starts_at'])} · {format_place(meeting)}\n"
+        f"{format_when_safe(meeting['starts_at'])} · {format_place(meeting)}\n"
         f"{meeting.get('topic')} · было {taken} уч."
+    )
+
+
+def format_admin_meeting_line(meeting: dict, db_path) -> str:
+    taken = count_rsvps(db_path, int(meeting["id"]))
+    seats = meeting.get("seats")
+    seats_txt = str(taken) if seats is None else f"{taken} / {seats}"
+    published = int(meeting.get("published") or 0)
+    status = "опубликована" if published else "снята"
+    return (
+        f"#{meeting['id']}  {format_when_safe(meeting['starts_at'])}\n"
+        f"{format_place(meeting)}\n"
+        f"{meeting.get('topic') or '—'}\n"
+        f"RSVP: {seats_txt}  ·  {status}"
     )
 
 

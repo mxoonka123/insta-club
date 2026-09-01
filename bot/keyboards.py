@@ -219,9 +219,45 @@ def meeting_publish_keyboard() -> InlineKeyboardMarkup:
 def admin_extra_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
+            [InlineKeyboardButton(text="Встречи", callback_data="meetadm:list")],
             [InlineKeyboardButton(text="Создать встречу", callback_data="meetadm:create")],
         ]
     )
+
+
+def admin_meetings_keyboard(
+    upcoming: list[dict],
+    past: list[dict] | None = None,
+) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    for meeting in upcoming[:8]:
+        meeting_id = int(meeting["id"])
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=f"Кто записался #{meeting_id}",
+                    callback_data=f"meetadm:who:{meeting_id}",
+                ),
+                InlineKeyboardButton(
+                    text=f"Снять #{meeting_id}",
+                    callback_data=f"meetadm:drop:{meeting_id}",
+                ),
+            ]
+        )
+    for meeting in (past or [])[:4]:
+        meeting_id = int(meeting["id"])
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=f"Кто был #{meeting_id}",
+                    callback_data=f"meetadm:who:{meeting_id}",
+                )
+            ]
+        )
+    rows.append(
+        [InlineKeyboardButton(text="Создать встречу", callback_data="meetadm:create")]
+    )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def events_keyboard() -> InlineKeyboardMarkup:
